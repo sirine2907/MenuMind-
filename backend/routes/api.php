@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DishController;
 use App\Http\Controllers\Api\MenuController;
+use App\Http\Controllers\Api\OrderController;
 use Illuminate\Support\Facades\Route;
 
 // Public menu
@@ -13,8 +14,16 @@ Route::get('dishes', [DishController::class, 'index']);
 Route::get('dishes/{dish}', [DishController::class, 'show'])->whereNumber('dish');
 Route::post('dishes/allergen-check', [DishController::class, 'checkAllergens']);
 
+// Authenticated customers
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('orders', [OrderController::class, 'index']);
+    Route::post('orders', [OrderController::class, 'store']);
+    Route::get('orders/{order}', [OrderController::class, 'show'])->whereNumber('order');
+});
+
 // Admin back-office
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])->whereNumber('order');
     Route::post('dishes', [DishController::class, 'store']);
     Route::match(['put', 'patch'], 'dishes/{dish}', [DishController::class, 'update'])->whereNumber('dish');
     Route::delete('dishes/{dish}', [DishController::class, 'destroy'])->whereNumber('dish');
