@@ -4,7 +4,6 @@ namespace App\Providers;
 
 use App\Repositories\Contracts\DishRepository;
 use App\Repositories\EloquentDishRepository;
-use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
