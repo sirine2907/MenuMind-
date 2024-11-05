@@ -23,6 +23,17 @@ class EloquentDishRepository implements DishRepository
         return $query->paginate($filters->perPage)->withQueryString();
     }
 
+    public function filter(int $restaurantId, DishFilters $filters): Collection
+    {
+        $query = Dish::query()
+            ->with(['category', 'allergens'])
+            ->where('restaurant_id', $restaurantId);
+
+        $this->applyFilters($query, $filters);
+
+        return $query->orderBy('name')->get();
+    }
+
     public function findMany(array $ids): Collection
     {
         return Dish::query()->with(['category', 'allergens'])->whereIn('id', $ids)->get();

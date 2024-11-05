@@ -15,6 +15,13 @@ interface DishRepository
     public function paginate(int $restaurantId, DishFilters $filters): LengthAwarePaginator;
 
     /**
+     * Unpaginated, unsorted variant used by the SQL search fallback.
+     *
+     * @return Collection<int, Dish>
+     */
+    public function filter(int $restaurantId, DishFilters $filters): Collection;
+
+    /**
      * @param  list<int>  $ids
      * @return Collection<int, Dish>
      */
