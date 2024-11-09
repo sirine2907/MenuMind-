@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DishController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\SearchController;
 use Illuminate\Support\Facades\Route;
 
 // Public menu
@@ -13,6 +14,12 @@ Route::get('allergens', [MenuController::class, 'allergens']);
 Route::get('dishes', [DishController::class, 'index']);
 Route::get('dishes/{dish}', [DishController::class, 'show'])->whereNumber('dish');
 Route::post('dishes/allergen-check', [DishController::class, 'checkAllergens']);
+
+// Hybrid search (used by the menu page and by the agent's tools)
+Route::middleware('throttle:120,1')->group(function () {
+    Route::get('search/dishes', [SearchController::class, 'dishes']);
+    Route::get('search/docs', [SearchController::class, 'docs']);
+});
 
 // Authenticated customers
 Route::middleware('auth:sanctum')->group(function () {
