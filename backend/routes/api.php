@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DishController;
+use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\SearchController;
@@ -31,6 +33,13 @@ Route::middleware('auth:sanctum')->group(function () {
 // Admin back-office
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])->whereNumber('order');
+
+    Route::get('documents', [DocumentController::class, 'index']);
+    Route::post('documents', [DocumentController::class, 'store']);
+    Route::delete('documents/{document}', [DocumentController::class, 'destroy'])->whereNumber('document');
+
+    Route::get('admin/stats', [AdminController::class, 'stats']);
+    Route::post('admin/reindex', [AdminController::class, 'reindex']);
     Route::post('dishes', [DishController::class, 'store']);
     Route::match(['put', 'patch'], 'dishes/{dish}', [DishController::class, 'update'])->whereNumber('dish');
     Route::delete('dishes/{dish}', [DishController::class, 'destroy'])->whereNumber('dish');
