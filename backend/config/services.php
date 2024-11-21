@@ -28,6 +28,13 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'agent' => [
+        'url' => env('AGENT_URL', 'http://localhost:8000'),
+        'timeout' => (int) env('AGENT_TIMEOUT', 180),
+        // Shared secret so the agent only accepts calls relayed by this API.
+        'secret' => env('AGENT_SHARED_SECRET'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

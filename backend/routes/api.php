@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\DishController;
 use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\MenuController;
@@ -28,6 +29,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('orders', [OrderController::class, 'index']);
     Route::post('orders', [OrderController::class, 'store']);
     Route::get('orders/{order}', [OrderController::class, 'show'])->whereNumber('order');
+
+    Route::post('chat', ChatController::class)->middleware('throttle:30,1');
 });
 
 // Admin back-office
