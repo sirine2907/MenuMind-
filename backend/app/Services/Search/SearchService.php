@@ -6,6 +6,7 @@ use App\Models\Dish;
 use App\Models\DocumentChunk;
 use App\Models\Restaurant;
 use App\Repositories\Contracts\DishRepository;
+use App\Support\AllergenResolver;
 use App\Support\DishFilters;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -31,6 +32,8 @@ class SearchService
         'than', 'more', 'menu', 'order', 'give', 'show', 'there', 'that', 'this', 'from', 'about', 'does',
         'tnd', 'dinar', 'dinars', 'cheap', 'i\'m', 'allergic', 'free', 'without', 'not', 'how', 'when',
     ];
+
+    private const DIET_WORDS = ['vegetarian', 'vegan', 'veggie', 'allergy', 'allergies', 'allergic', 'meatless'];
 
     public function __construct(
         private readonly TypesenseClient $client,
@@ -192,7 +195,14 @@ class SearchService
     private function fallbackDishes(Restaurant $restaurant, string $query, DishFilters $filters, int $limit): array
     {
         $candidates = $this->dishes->filter($restaurant->id, $filters);
-        $terms = $this->terms($query);
+
+        // Words the structured filters already express ("vegetarian", "peanuts")
+        // are constraints, not things to match in a dish description.
+        $terms = array_values(array_filter(
+            $this->terms($query),
+            fn (string $term) => ! in_array($term, self::DIET_WORDS, true)
+                && array_intersect(AllergenResolver::resolve([$term]), $filters->excludeAllergens) === [],
+        ));
 
         $scored = $candidates->map(fn (Dish $dish) => [
             'dish' => $dish,
