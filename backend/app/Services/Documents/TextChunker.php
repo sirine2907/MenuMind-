@@ -76,19 +76,21 @@ class TextChunker
             return [$paragraph];
         }
 
+        // Leave room for the overlap carried over from the previous chunk.
+        $budget = max(intdiv($this->maxChars, 2), $this->maxChars - $this->overlapChars - 2);
         $sentences = preg_split('/(?<=[.!?])\s+/u', $paragraph) ?: [$paragraph];
         $pieces = [];
         $current = '';
 
         foreach ($sentences as $sentence) {
-            if ($current !== '' && mb_strlen($current) + mb_strlen($sentence) + 1 > $this->maxChars) {
+            if ($current !== '' && mb_strlen($current) + mb_strlen($sentence) + 1 > $budget) {
                 $pieces[] = $current;
                 $current = '';
             }
             // A single "sentence" longer than the limit is hard-wrapped.
-            while (mb_strlen($sentence) > $this->maxChars) {
-                $pieces[] = mb_substr($sentence, 0, $this->maxChars);
-                $sentence = mb_substr($sentence, $this->maxChars);
+            while (mb_strlen($sentence) > $budget) {
+                $pieces[] = mb_substr($sentence, 0, $budget);
+                $sentence = mb_substr($sentence, $budget);
             }
             $current .= ($current === '' ? '' : ' ').$sentence;
         }
