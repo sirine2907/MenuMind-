@@ -31,7 +31,7 @@ class IndexDishRequest extends FormRequest
             'search' => ['nullable', 'string', 'max:100'],
             'category' => ['nullable', 'string', 'max:100'],
             'min_price' => ['nullable', 'numeric', 'min:0'],
-            'max_price' => ['nullable', 'numeric', 'min:0', 'gte:min_price'],
+            'max_price' => ['nullable', 'numeric', 'min:0', Rule::when($this->filled('min_price'), 'gte:min_price')],
             'vegetarian' => ['nullable', 'boolean'],
             'vegan' => ['nullable', 'boolean'],
             'max_spicy' => ['nullable', 'integer', 'between:0,3'],
