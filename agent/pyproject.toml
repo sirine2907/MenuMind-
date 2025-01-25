@@ -1,0 +1,50 @@
+[project]
+name = "menumind-agent"
+version = "0.1.0"
+description = "LangGraph agent service for MenuMind, the AI assistant for restaurants"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.147.0",
+    "httpx>=0.28.1",
+    "langchain-core>=1.6.12",
+    "langchain-ollama>=1.1.0",
+    "langgraph>=1.2.16",
+    "pydantic-settings>=2.16.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.optional-dependencies]
+openai = [
+    "langchain-openai>=1.7.2",
+]
+anthropic = [
+    "langchain-anthropic>=1.7.6",
+]
+gemini = [
+    "langchain-google-genai>=4.4.2",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "respx>=0.23.1",
+    "ruff>=0.17.1",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
