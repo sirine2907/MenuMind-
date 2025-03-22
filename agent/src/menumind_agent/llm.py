@@ -61,11 +61,15 @@ def create_chat_model(settings: Settings, provider: Provider | None = None) -> B
         case "anthropic":
             from langchain_anthropic import ChatAnthropic
 
-            return ChatAnthropic(model=model or settings.anthropic_model, api_key=settings.anthropic_api_key, temperature=temperature)
+            return ChatAnthropic(
+                model=model or settings.anthropic_model, api_key=settings.anthropic_api_key, temperature=temperature
+            )
         case "gemini":
             from langchain_google_genai import ChatGoogleGenerativeAI
 
-            return ChatGoogleGenerativeAI(model=model or settings.gemini_model, google_api_key=settings.google_api_key, temperature=temperature)
+            return ChatGoogleGenerativeAI(
+                model=model or settings.gemini_model, google_api_key=settings.google_api_key, temperature=temperature
+            )
         case "mock":
             return ScriptedChatModel()
 
@@ -97,11 +101,15 @@ async def _provider_problem(settings: Settings) -> str | None:
         case "openai":
             return None if settings.openai_api_key else "OPENAI_API_KEY is not set"
         case "azure_openai":
-            missing = [n for n, v in {
-                "AZURE_OPENAI_ENDPOINT": settings.azure_openai_endpoint,
-                "AZURE_OPENAI_API_KEY": settings.azure_openai_api_key,
-                "AZURE_OPENAI_DEPLOYMENT": settings.azure_openai_deployment,
-            }.items() if not v]
+            missing = [
+                n
+                for n, v in {
+                    "AZURE_OPENAI_ENDPOINT": settings.azure_openai_endpoint,
+                    "AZURE_OPENAI_API_KEY": settings.azure_openai_api_key,
+                    "AZURE_OPENAI_DEPLOYMENT": settings.azure_openai_deployment,
+                }.items()
+                if not v
+            ]
             return f"{', '.join(missing)} not set" if missing else None
         case "anthropic":
             return None if settings.anthropic_api_key else "ANTHROPIC_API_KEY is not set"

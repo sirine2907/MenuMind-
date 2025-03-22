@@ -30,9 +30,7 @@ class MenuFilters(BaseModel):
     exclude_allergens: list[str] | None = Field(
         None, description="Allergens the dish must NOT contain, e.g. ['peanuts', 'gluten', 'dairy']"
     )
-    category: str | None = Field(
-        None, description="Category slug: starters, soups, mains, salads, pizzas, desserts or drinks"
-    )
+    category: str | None = Field(None, description="Category slug: starters, soups, mains, salads, pizzas, desserts or drinks")
 
 
 class OrderLine(BaseModel):
@@ -59,7 +57,9 @@ def build_tools(api: MenuMindApi) -> list[BaseTool]:
         constraints (diet, budget, allergies, spiciness, category) go in `filters`.
         """
         try:
-            result = (await api.search_dishes(query, filters.model_dump(exclude_none=True) if filters else None, limit=10))["data"]
+            result = (await api.search_dishes(query, filters.model_dump(exclude_none=True) if filters else None, limit=10))[
+                "data"
+            ]
         except MenuMindApiError as exc:
             return _error(exc)
 
@@ -116,7 +116,9 @@ def build_tools(api: MenuMindApi) -> list[BaseTool]:
         return _dump(content), result
 
     @tool(response_format="content_and_artifact")
-    async def create_order(items: list[OrderLine], notes: str | None = None, confirmed: bool = False) -> tuple[str, dict[str, Any]]:
+    async def create_order(
+        items: list[OrderLine], notes: str | None = None, confirmed: bool = False
+    ) -> tuple[str, dict[str, Any]]:
         """Place an order for the current guest.
 
         ONLY call this after you showed the guest a summary (dishes, quantities,

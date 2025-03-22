@@ -25,7 +25,9 @@ class MenuMindApiError(RuntimeError):
 
 
 class MenuMindApi:
-    def __init__(self, base_url: str, token: str | None, timeout: float = 20.0, transport: httpx.AsyncBaseTransport | None = None):
+    def __init__(
+        self, base_url: str, token: str | None, timeout: float = 20.0, transport: httpx.AsyncBaseTransport | None = None
+    ):
         headers = {"Accept": "application/json"}
         if token:
             headers["Authorization"] = f"Bearer {token}"

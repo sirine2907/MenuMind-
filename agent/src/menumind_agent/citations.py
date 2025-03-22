@@ -24,30 +24,36 @@ def collect_citations(turn: Sequence[AnyMessage], answer: str) -> list[dict[str,
 
         if message.name == "search_menu":
             for hit in artifact.get("hits", []):
-                dishes.append({
-                    "type": "dish",
-                    "id": hit["id"],
-                    "title": hit["name"],
-                    "subtitle": f"{hit['price']:g} TND",
-                    "url": f"/menu?dish={hit['id']}",
-                })
+                dishes.append(
+                    {
+                        "type": "dish",
+                        "id": hit["id"],
+                        "title": hit["name"],
+                        "subtitle": f"{hit['price']:g} TND",
+                        "url": f"/menu?dish={hit['id']}",
+                    }
+                )
         elif message.name == "search_docs":
             for hit in artifact.get("hits", []):
-                documents.append({
-                    "type": "document",
-                    "id": hit["chunk_id"],
-                    "title": hit["document_title"],
-                    "subtitle": hit.get("heading"),
-                    "snippet": hit["content"][:240],
-                })
+                documents.append(
+                    {
+                        "type": "document",
+                        "id": hit["chunk_id"],
+                        "title": hit["document_title"],
+                        "subtitle": hit.get("heading"),
+                        "snippet": hit["content"][:240],
+                    }
+                )
         elif message.name in ("create_order", "get_order_status") and "id" in artifact:
-            orders.append({
-                "type": "order",
-                "id": artifact["id"],
-                "title": f"Order #{artifact['id']}",
-                "subtitle": artifact.get("status_label"),
-                "url": "/orders",
-            })
+            orders.append(
+                {
+                    "type": "order",
+                    "id": artifact["id"],
+                    "title": f"Order #{artifact['id']}",
+                    "subtitle": artifact.get("status_label"),
+                    "url": "/orders",
+                }
+            )
 
     # Only cite dishes the answer actually talks about.
     normalized_answer = _normalize(answer)

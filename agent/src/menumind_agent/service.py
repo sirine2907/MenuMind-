@@ -67,9 +67,15 @@ class ChatService:
         turn = _current_turn(state["messages"])
         answer = _final_answer(turn)
         steps = [
-            Step(id=m.tool_call_id, tool=m.name or "", label=TOOL_LABELS.get(m.name or "", m.name or ""),
-                 input=_tool_input(turn, m.tool_call_id), summary=summarize_tool_result(m.name or "", m.artifact))
-            for m in turn if isinstance(m, ToolMessage)
+            Step(
+                id=m.tool_call_id,
+                tool=m.name or "",
+                label=TOOL_LABELS.get(m.name or "", m.name or ""),
+                input=_tool_input(turn, m.tool_call_id),
+                summary=summarize_tool_result(m.name or "", m.artifact),
+            )
+            for m in turn
+            if isinstance(m, ToolMessage)
         ]
         return ChatResponse(
             session_id=request.session_id,
@@ -85,9 +91,7 @@ class ChatService:
         config = self._config(request)
         try:
             async with asyncio.timeout(self.settings.llm_timeout_seconds):
-                return await self._graph(request, api, resolved).ainvoke(
-                    {"messages": [HumanMessage(request.message)]}, config
-                )
+                return await self._graph(request, api, resolved).ainvoke({"messages": [HumanMessage(request.message)]}, config)
         except (TimeoutError, httpx.ConnectError) as exc:
             if resolved.provider == "mock" or not self.settings.llm_fallback_to_mock:
                 raise
@@ -109,8 +113,15 @@ class ChatService:
             yield sse("error", {"message": str(exc)})
             return
 
-        yield sse("meta", {"session_id": request.session_id, "provider": resolved.provider,
-                           "model": resolved.model, "fallback_reason": resolved.fallback_reason})
+        yield sse(
+            "meta",
+            {
+                "session_id": request.session_id,
+                "provider": resolved.provider,
+                "model": resolved.model,
+                "fallback_reason": resolved.fallback_reason,
+            },
+        )
 
         api = self.api_factory(request)
         config = self._config(request)
@@ -150,20 +161,36 @@ def _event_to_sse(event: dict[str, Any]) -> str | None:
             return sse("token", {"text": text})
 
     elif kind == "on_tool_start" and event["name"] in TOOL_LABELS:
-        return sse("step", {"id": event["run_id"], "tool": event["name"], "label": TOOL_LABELS[event["name"]],
-                            "status": "running", "input": event["data"].get("input", {})})
+        return sse(
+            "step",
+            {
+                "id": event["run_id"],
+                "tool": event["name"],
+                "label": TOOL_LABELS[event["name"]],
+                "status": "running",
+                "input": event["data"].get("input", {}),
+            },
+        )
 
     elif kind == "on_tool_end" and event["name"] in TOOL_LABELS:
         output = event["data"].get("output")
         artifact = getattr(output, "artifact", None)
-        return sse("step", {"id": event["run_id"], "tool": event["name"], "label": TOOL_LABELS[event["name"]],
-                            "status": "done", "summary": summarize_tool_result(event["name"], artifact)})
+        return sse(
+            "step",
+            {
+                "id": event["run_id"],
+                "tool": event["name"],
+                "label": TOOL_LABELS[event["name"]],
+                "status": "done",
+                "summary": summarize_tool_result(event["name"], artifact),
+            },
+        )
 
     return None
 
 
 def _current_turn(messages: list[AnyMessage]) -> list[AnyMessage]:
-    return messages[last_human_index(messages) + 1:]
+    return messages[last_human_index(messages) + 1 :]
 
 
 def _final_answer(turn: list[AnyMessage]) -> str:

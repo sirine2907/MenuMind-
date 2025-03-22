@@ -48,3 +48,5 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
+# Line length is owned by `ruff format`; long prompt strings are fine.
+ignore = ["E501"]
