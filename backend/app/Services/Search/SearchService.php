@@ -215,8 +215,10 @@ class SearchService
             $scored = $scored->filter(fn ($row) => $row['score'] > 0);
         }
 
+        // Best lexical score first, then menu order (category position, price).
         return $scored
-            ->sortByDesc('score')
+            ->sort(fn (array $a, array $b) => [$b['score'], $a['dish']->category?->position ?? PHP_INT_MAX, (float) $a['dish']->price]
+                <=> [$a['score'], $b['dish']->category?->position ?? PHP_INT_MAX, (float) $b['dish']->price])
             ->take($limit)
             ->map(fn ($row) => [
                 'id' => $row['dish']->id,
