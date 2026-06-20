@@ -1,3 +1,4 @@
+/* oxlint-disable react/only-export-components -- route configuration module, not a component module */
 import { lazy, Suspense, type ReactNode } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router'
 import { Layout } from './components/Layout'
