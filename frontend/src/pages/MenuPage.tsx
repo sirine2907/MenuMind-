@@ -11,7 +11,7 @@ import type { DishFilters } from '../lib/types'
 export function MenuPage() {
   const [params] = useSearchParams()
   const highlighted = Number(params.get('dish')) || null
-  const [filters, setFilters] = useState<DishFilters>({ sort: 'name', page: 1 })
+  const [filters, setFilters] = useState<DishFilters>({ sort: 'menu', page: 1 })
   const debounced = useDebounced(filters, 250)
 
   const dishes = useDishes(debounced)

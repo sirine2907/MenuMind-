@@ -92,7 +92,7 @@ export interface DishFilters {
   vegan?: boolean
   max_price?: number
   exclude_allergens?: string[]
-  sort?: 'name' | 'price_asc' | 'price_desc' | 'spicy'
+  sort?: 'menu' | 'name' | 'price_asc' | 'price_desc' | 'spicy'
   page?: number
 }
 

@@ -63,10 +63,11 @@ export function FilterBar({ filters, onChange, categories, allergens }: Props) {
 
           <select
             className="input w-auto rounded-full py-1.5"
-            value={filters.sort ?? 'name'}
+            value={filters.sort ?? 'menu'}
             onChange={(e) => set({ sort: e.target.value as DishFilters['sort'] })}
             aria-label="Sort dishes"
           >
+            <option value="menu">Menu order</option>
             <option value="name">Name</option>
             <option value="price_asc">Price ↑</option>
             <option value="price_desc">Price ↓</option>
