@@ -431,7 +431,7 @@ def _order_placed(result: dict[str, Any]) -> str:
     return (
         f"✅ Your order **#{order['id']}** has been placed!\n\n{items}\n\n"
         f"**Total: {_fmt_price(order['total'])}** · Status: **{order['status_label']}**\n\n"
-        'You can follow it on the Orders page, or just ask me "where is my order?". Saha! 🍽️'
+        'You can follow it on the Orders page, or just ask me "where is my order?". Saha!'
     )
 
 
