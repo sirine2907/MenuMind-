@@ -38,7 +38,7 @@ class IndexDishRequest extends FormRequest
             'exclude_allergens' => ['nullable', 'array', 'max:14'],
             'exclude_allergens.*' => ['string', 'max:50'],
             'available' => ['nullable', 'boolean'],
-            'sort' => ['nullable', Rule::in(['name', 'price_asc', 'price_desc', 'newest', 'spicy'])],
+            'sort' => ['nullable', Rule::in(['menu', 'name', 'price_asc', 'price_desc', 'newest', 'spicy'])],
             'per_page' => ['nullable', 'integer', 'between:1,100'],
         ];
     }

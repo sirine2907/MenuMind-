@@ -17,7 +17,7 @@ class MenuSeeder extends Seeder
         ['eggs', 'Eggs', '🥚'],
         ['fish', 'Fish', '🐟'],
         ['peanuts', 'Peanuts', '🥜'],
-        ['soy', 'Soy', '🫘'],
+        ['soy', 'Soy', '🌱'],
         ['dairy', 'Dairy', '🥛'],
         ['tree-nuts', 'Tree nuts', '🌰'],
         ['celery', 'Celery', '🥬'],

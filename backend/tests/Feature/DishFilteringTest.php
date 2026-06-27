@@ -20,8 +20,8 @@ class DishFilteringTest extends TestCase
         parent::setUp();
 
         $this->restaurant = Restaurant::factory()->create();
-        $mains = Category::factory()->for($this->restaurant)->create(['slug' => 'mains', 'name' => 'Mains']);
-        $desserts = Category::factory()->for($this->restaurant)->create(['slug' => 'desserts', 'name' => 'Desserts']);
+        $mains = Category::factory()->for($this->restaurant)->create(['slug' => 'mains', 'name' => 'Mains', 'position' => 1]);
+        $desserts = Category::factory()->for($this->restaurant)->create(['slug' => 'desserts', 'name' => 'Desserts', 'position' => 5]);
 
         $peanuts = Allergen::factory()->create(['slug' => 'peanuts', 'name' => 'Peanuts']);
         $gluten = Allergen::factory()->create(['slug' => 'gluten', 'name' => 'Gluten']);
@@ -41,6 +41,14 @@ class DishFilteringTest extends TestCase
             ->assertJsonCount(2, 'data')
             ->assertJsonPath('meta.total', 5)
             ->assertJsonStructure(['data' => [['id', 'name', 'price', 'currency', 'allergens', 'category']], 'links', 'meta']);
+    }
+
+    public function test_default_order_follows_the_menu_categories(): void
+    {
+        $this->assertSame(
+            ['Couscous Lamb', 'Ojja Legumes', 'Vegetable Couscous', 'Couscous Mesfouf', 'Mhalbia'],
+            $this->names('/api/dishes'),
+        );
     }
 
     public function test_it_filters_vegetarian_dishes(): void

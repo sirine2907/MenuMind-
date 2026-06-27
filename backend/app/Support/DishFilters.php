@@ -21,7 +21,7 @@ final readonly class DishFilters
         public ?int $maxSpicy = null,
         public array $excludeAllergens = [],
         public bool $onlyAvailable = true,
-        public string $sort = 'name',
+        public string $sort = 'menu',
         public int $perPage = 12,
     ) {}
 
@@ -42,7 +42,7 @@ final readonly class DishFilters
             maxSpicy: isset($input['max_spicy']) ? (int) $input['max_spicy'] : null,
             excludeAllergens: AllergenResolver::resolve($input['exclude_allergens'] ?? []),
             onlyAvailable: $bool($input['available'] ?? true) ?? true,
-            sort: $input['sort'] ?? 'name',
+            sort: $input['sort'] ?? 'menu',
             perPage: (int) ($input['per_page'] ?? 12),
         );
     }

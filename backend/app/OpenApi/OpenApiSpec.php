@@ -219,7 +219,7 @@ final class OpenApiSpec
             new OA\Parameter(name: 'vegan', in: 'query', schema: new OA\Schema(type: 'boolean')),
             new OA\Parameter(name: 'max_spicy', in: 'query', schema: new OA\Schema(type: 'integer', maximum: 3)),
             new OA\Parameter(name: 'exclude_allergens', in: 'query', description: 'Comma separated slugs or synonyms (e.g. "peanut,milk")', schema: new OA\Schema(type: 'string', example: 'peanuts')),
-            new OA\Parameter(name: 'sort', in: 'query', schema: new OA\Schema(type: 'string', enum: ['name', 'price_asc', 'price_desc', 'newest', 'spicy'])),
+            new OA\Parameter(name: 'sort', in: 'query', schema: new OA\Schema(type: 'string', enum: ['menu', 'name', 'price_asc', 'price_desc', 'newest', 'spicy'], default: 'menu')),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 12)),
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer')),
         ],

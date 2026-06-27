@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\Category;
 use App\Models\Dish;
 use App\Repositories\Contracts\DishRepository;
 use App\Support\DishFilters;
@@ -78,6 +79,10 @@ class EloquentDishRepository implements DishRepository
     private function applySort(Builder $query, string $sort): void
     {
         match ($sort) {
+            // Same order as the printed menu: starters first, desserts and drinks last.
+            'menu' => $query
+                ->orderBy(Category::select('position')->whereColumn('categories.id', 'dishes.category_id'))
+                ->orderBy('name'),
             'price_asc' => $query->orderBy('price')->orderBy('name'),
             'price_desc' => $query->orderByDesc('price')->orderBy('name'),
             'newest' => $query->latest('id'),
