@@ -1,0 +1,151 @@
+name: menumind
+
+# One command runs everything: docker compose up --build
+#   App      http://localhost:3000   (demo@menumind.tn / password, admin@menumind.tn / password)
+#   API      http://localhost:8080   (Swagger UI: /api/documentation)
+#   Agent    http://localhost:8000/health
+
+x-healthcheck: &healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 12
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: menumind
+      POSTGRES_USER: menumind
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-menumind}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD-SHELL", "pg_isready -U menumind -d menumind"]
+
+  typesense:
+    image: typesense/typesense:28.0
+    command: --data-dir /data --api-key=${TYPESENSE_API_KEY:-menumind-dev-key} --enable-cors
+    volumes:
+      - typesense:/data
+    ports:
+      - "8108:8108"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/8108' || exit 1"]
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "ollama", "list"]
+    # NVIDIA GPU (optional): uncomment to speed up generation.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # One-shot job: pulls the model into the shared volume, then exits. Until
+  # it finishes, the agent answers with its scripted fallback model.
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["/bin/sh", "-c", "echo 'Pulling ${OLLAMA_MODEL:-qwen2.5:7b}...' && ollama pull ${OLLAMA_MODEL:-qwen2.5:7b}"]
+    restart: "no"
+
+  backend:
+    build: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      typesense:
+        condition: service_healthy
+    environment:
+      APP_NAME: MenuMind
+      APP_ENV: ${APP_ENV:-local}
+      APP_KEY: ${APP_KEY:-}
+      APP_DEBUG: ${APP_DEBUG:-true}
+      APP_URL: http://localhost:8080
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: menumind
+      DB_USERNAME: menumind
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-menumind}
+      SESSION_DRIVER: array
+      CACHE_STORE: database
+      QUEUE_CONNECTION: sync
+      TYPESENSE_ENABLED: "true"
+      TYPESENSE_HOST: typesense
+      TYPESENSE_PORT: 8108
+      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:-menumind-dev-key}
+      TYPESENSE_EMBEDDING_MODEL: ts/all-MiniLM-L12-v2
+      AGENT_URL: http://agent:8000
+      AGENT_SHARED_SECRET: ${AGENT_SHARED_SECRET:-menumind-local-secret}
+      L5_SWAGGER_CONST_HOST: http://localhost:8080
+    ports:
+      - "8080:8080"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/up"]
+      start_period: 60s
+
+  agent:
+    build: ./agent
+    depends_on:
+      backend:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    environment:
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_FALLBACK_TO_MOCK: ${LLM_FALLBACK_TO_MOCK:-true}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-180}
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      LARAVEL_API_URL: http://backend:8080/api
+      AGENT_SHARED_SECRET: ${AGENT_SHARED_SECRET:-menumind-local-secret}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=4)"]
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+      agent:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+
+volumes:
+  postgres:
+  typesense:
+  ollama:
