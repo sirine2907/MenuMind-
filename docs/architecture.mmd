@@ -1,0 +1,37 @@
+flowchart LR
+    user(["Guest / Admin<br/>browser"])
+
+    subgraph FE["Frontend :3000"]
+        spa["React 19 SPA (nginx)<br/>Menu · Chat · Orders · Admin"]
+    end
+
+    subgraph BE["Laravel 12 API :8080"]
+        api["REST API<br/>Sanctum · Form Requests · Resources"]
+        chat["/api/chat<br/>SSE relay"]
+        search["SearchService<br/>hybrid search + SQL fallback"]
+        ingest["Document ingestion<br/>extract → chunk"]
+        sync["DishObserver<br/>menumind:reindex"]
+    end
+
+    subgraph AG["FastAPI agent :8000"]
+        reactGraph["LangGraph ReAct loop<br/>agent ⇄ guarded tools"]
+        memory[("Checkpointer<br/>session memory")]
+    end
+
+    pg[("PostgreSQL<br/>source of truth")]
+    ts[("Typesense<br/>dishes · doc_chunks<br/>ts/all-MiniLM-L12-v2")]
+    llm{{"LLM provider<br/>Ollama qwen2.5:7b (default)<br/>OpenAI · Azure · Anthropic · Gemini · mock"}}
+
+    user --> spa
+    spa -- "/api · REST + SSE" --> api
+    api --> chat
+    chat -- "message + user token" --> reactGraph
+    reactGraph -- "tool calls with the user's token" --> api
+    reactGraph <--> llm
+    reactGraph --- memory
+    api --> search
+    search -- "keyword + vector" --> ts
+    api --> pg
+    ingest --> pg
+    ingest --> ts
+    sync -- upsert --> ts
