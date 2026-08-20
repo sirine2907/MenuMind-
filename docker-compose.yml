@@ -88,11 +88,12 @@ services:
       SESSION_DRIVER: array
       CACHE_STORE: database
       QUEUE_CONNECTION: sync
-      TYPESENSE_ENABLED: "true"
+      TYPESENSE_ENABLED: ${TYPESENSE_ENABLED:-true}
       TYPESENSE_HOST: typesense
       TYPESENSE_PORT: 8108
       TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:-menumind-dev-key}
-      TYPESENSE_EMBEDDING_MODEL: ts/all-MiniLM-L12-v2
+      TYPESENSE_EMBEDDING_MODEL: ${TYPESENSE_EMBEDDING_MODEL:-ts/all-MiniLM-L12-v2}
+      TYPESENSE_HYBRID_ALPHA: ${TYPESENSE_HYBRID_ALPHA:-0.4}
       AGENT_URL: http://agent:8000
       AGENT_SHARED_SECRET: ${AGENT_SHARED_SECRET:-menumind-local-secret}
       L5_SWAGGER_CONST_HOST: http://localhost:8080
