@@ -61,6 +61,11 @@ export function useChat() {
         case 'token':
           patchLast((m) => ({ ...m, content: m.content + String(payload.text ?? '') }))
           break
+        case 'reset':
+          // The model timed out and the fallback model is finishing the turn:
+          // drop the partial text but keep the tool steps already completed.
+          patchLast((m) => ({ ...m, content: '' }))
+          break
         case 'citations':
           patchLast((m) => ({ ...m, citations: (payload.citations as Citation[]) ?? [] }))
           break
