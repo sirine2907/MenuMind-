@@ -22,7 +22,8 @@ RUN php artisan package:discover --ansi \
     && chown -R www-data:www-data storage bootstrap/cache
 
 # The agent calls back into this API while a chat request is still open,
-# so the built-in server needs several workers.
+# so the built-in server needs several workers. Laravel only honours
+# PHP_CLI_SERVER_WORKERS together with --no-reload (see CMD).
 ENV PHP_CLI_SERVER_WORKERS=8 \
     LOG_CHANNEL=stderr
 
@@ -30,4 +31,4 @@ USER www-data
 EXPOSE 8080
 
 ENTRYPOINT ["docker/entrypoint.sh"]
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8080"]
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8080", "--no-reload"]

@@ -4,6 +4,10 @@ name: menumind
 #   App      http://localhost:3000   (demo@menumind.tn / password, admin@menumind.tn / password)
 #   API      http://localhost:8080   (Swagger UI: /api/documentation)
 #   Agent    http://localhost:8000/health
+#
+# Only these three ports are published (override with APP_PORT, API_PORT,
+# AGENT_PORT). PostgreSQL, Typesense and Ollama stay on the internal network,
+# so they never clash with instances already running on the host.
 
 x-healthcheck: &healthcheck
   interval: 10s
@@ -19,8 +23,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-menumind}
     volumes:
       - postgres:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
       <<: *healthcheck
       test: ["CMD-SHELL", "pg_isready -U menumind -d menumind"]
@@ -30,8 +32,6 @@ services:
     command: --data-dir /data --api-key=${TYPESENSE_API_KEY:-menumind-dev-key} --enable-cors
     volumes:
       - typesense:/data
-    ports:
-      - "8108:8108"
     healthcheck:
       <<: *healthcheck
       test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/8108' || exit 1"]
@@ -40,8 +40,6 @@ services:
     image: ollama/ollama:latest
     volumes:
       - ollama:/root/.ollama
-    ports:
-      - "11434:11434"
     healthcheck:
       <<: *healthcheck
       test: ["CMD", "ollama", "list"]
@@ -78,7 +76,7 @@ services:
       APP_ENV: ${APP_ENV:-local}
       APP_KEY: ${APP_KEY:-}
       APP_DEBUG: ${APP_DEBUG:-true}
-      APP_URL: http://localhost:8080
+      APP_URL: http://localhost:${API_PORT:-8080}
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: 5432
@@ -88,16 +86,17 @@ services:
       SESSION_DRIVER: array
       CACHE_STORE: database
       QUEUE_CONNECTION: sync
-      TYPESENSE_ENABLED: "true"
+      TYPESENSE_ENABLED: ${TYPESENSE_ENABLED:-true}
       TYPESENSE_HOST: typesense
       TYPESENSE_PORT: 8108
       TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:-menumind-dev-key}
-      TYPESENSE_EMBEDDING_MODEL: ts/all-MiniLM-L12-v2
+      TYPESENSE_EMBEDDING_MODEL: ${TYPESENSE_EMBEDDING_MODEL:-ts/all-MiniLM-L12-v2}
+      TYPESENSE_HYBRID_ALPHA: ${TYPESENSE_HYBRID_ALPHA:-0.4}
       AGENT_URL: http://agent:8000
       AGENT_SHARED_SECRET: ${AGENT_SHARED_SECRET:-menumind-local-secret}
-      L5_SWAGGER_CONST_HOST: http://localhost:8080
+      L5_SWAGGER_CONST_HOST: http://localhost:${API_PORT:-8080}
     ports:
-      - "8080:8080"
+      - "${API_PORT:-8080}:8080"
     healthcheck:
       <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/up"]
@@ -127,7 +126,7 @@ services:
       LARAVEL_API_URL: http://backend:8080/api
       AGENT_SHARED_SECRET: ${AGENT_SHARED_SECRET:-menumind-local-secret}
     ports:
-      - "8000:8000"
+      - "${AGENT_PORT:-8000}:8000"
     healthcheck:
       <<: *healthcheck
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=4)"]
@@ -140,7 +139,7 @@ services:
       agent:
         condition: service_healthy
     ports:
-      - "3000:80"
+      - "${APP_PORT:-3000}:80"
     healthcheck:
       <<: *healthcheck
       test: ["CMD", "wget", "-qO-", "http://localhost/"]
