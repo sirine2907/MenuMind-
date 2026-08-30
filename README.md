@@ -53,7 +53,7 @@ The demo restaurant is **Dar El Menu**, a (fictional) Tunisian restaurant in La 
 - REST API with Sanctum auth, roles, Form Request validation, API Resources, pagination, filtering and a **single JSON error envelope**.
 - **Hybrid search** (keyword + vector) with Typesense, and graceful degradation to SQL when Typesense is down.
 - **LangGraph agent** with five tools, per-session memory, provider-agnostic LLM layer and SSE streaming.
-- OpenAPI docs (Swagger UI), 119 automated tests across the three services, GitHub Actions CI, Docker Compose, Makefile.
+- OpenAPI docs (Swagger UI), 123 automated tests across the three services, GitHub Actions CI, Docker Compose, Makefile.
 
 ## Architecture
 
@@ -184,11 +184,12 @@ A LangGraph `StateGraph` with two nodes: the **agent** node calls the LLM (with 
 | `step` | `{tool, label, status: running \| done, summary}`, e.g. *🧪 Checking allergens… · 6/6 dishes safe* |
 | `token` | a chunk of the answer |
 | `citations` | dishes, document passages and orders the answer relied on |
+| `reset` | the model timed out mid-answer: drop the partial text, the fallback model finishes the turn |
 | `done` / `error` | end of turn |
 
 **Provider-agnostic.** `create_chat_model()` returns a LangChain chat model for `ollama`, `openai`, `azure_openai`, `anthropic`, `gemini` or `mock`, chosen by `LLM_PROVIDER`. The default is Ollama with **qwen2.5:7b** (good tool calling for its size); on low-RAM machines use **llama3.2:3b**.
 
-**The scripted `mock` model** is a deterministic stand-in that speaks the same tool-calling protocol: it emits real tool calls, the graph executes them against the live API, and it writes its answer only from the tool results. It powers offline demos and screenshots. The agent also falls back to it automatically when the configured provider is unusable (Ollama down, model still being pulled, API key missing, or a turn timing out), and the UI shows a *Demo model* badge when that happens. Set `LLM_FALLBACK_TO_MOCK=false` to turn this off.
+**The scripted `mock` model** is a deterministic stand-in that speaks the same tool-calling protocol: it emits real tool calls, the graph executes them against the live API, and it writes its answer only from the tool results. It powers offline demos and screenshots. The agent also falls back to it automatically when the configured provider is unusable: Ollama down, model still being pulled, API key missing, or a turn that times out or loses its connection halfway. In that last case the turn resumes from the LangGraph checkpoint, so tool calls already made are not repeated. The UI shows a *Demo model* badge when the fallback is active. Set `LLM_FALLBACK_TO_MOCK=false` to turn this off.
 
 ## Quick start
 
@@ -279,6 +280,7 @@ Compose reads a root `.env` (all values have working defaults). Each service als
 | `TYPESENSE_ENABLED` | `true` | backend | `false` forces the SQL fallback |
 | `POSTGRES_PASSWORD` | `menumind` | postgres, backend | Database password |
 | `APP_KEY` | generated | backend | Laravel key (generated at start-up when empty) |
+| `APP_PORT` / `API_PORT` / `AGENT_PORT` | `3000` / `8080` / `8000` | compose | Host ports. PostgreSQL, Typesense and Ollama are not published, so they never clash with local installs. |
 
 ## API overview
 
@@ -318,7 +320,7 @@ make lint             # ruff + oxlint + tsc
 | Suite | Tests | Covers |
 | --- | --- | --- |
 | Backend (PHPUnit) | 57 | Auth, dish filtering and sorting, allergen check, admin CRUD, orders (totals, ownership, status transitions), validation and the error envelope, document upload and chunking, hybrid search (Typesense faked over HTTP) and its SQL fallback, chat proxy (JSON, SSE, agent down) |
-| Agent (Pytest) | 41 | API client, every tool, the LangGraph loop with a scripted fake LLM, the order confirmation guard, session memory, provider selection and fallback, scripted model behaviour, `/chat` and `/chat/stream` endpoints. All LLM and HTTP calls are mocked. |
+| Agent (Pytest) | 45 | API client, every tool, the LangGraph loop with a scripted fake LLM, the order confirmation guard, session memory, provider selection and fallback (including a model that hangs or disconnects mid-turn), scripted model behaviour, `/chat` and `/chat/stream` endpoints. All LLM and HTTP calls are mocked. |
 | Frontend (Vitest) | 21 | Dish card, filter bar, chat bubble (steps, markdown, citations), login flow, API client, SSE parser |
 
 CI runs the backend suite against a real **PostgreSQL** service container, lints and tests the agent and the frontend, builds the frontend, and builds the three Docker images.
