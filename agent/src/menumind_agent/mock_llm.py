@@ -328,12 +328,20 @@ def _describe_filters(filters: dict[str, Any]) -> str:
     return text
 
 
-def _sentences_with(passages: list[dict[str, Any]], keywords: list[str], limit: int = 2) -> list[tuple[str, str]]:
+def _sentences_with(
+    passages: list[dict[str, Any]], keywords: list[str], limit: int = 2, per_passage: int | None = None
+) -> list[tuple[str, str]]:
+    """Sentences mentioning a keyword, in passage order. Capping each passage
+    lets a two-part question ("delivery? payment?") get both answers."""
     found: list[tuple[str, str]] = []
     for passage in passages:
+        taken = 0
         for sentence in re.split(r"(?<=[.!?])\s+", passage["text"]):
-            if any(k in sentence.lower() for k in keywords) and len(found) < limit:
+            if len(found) >= limit or (per_passage is not None and taken >= per_passage):
+                break
+            if any(k in sentence.lower() for k in keywords):
                 found.append((passage["source"], sentence.strip()))
+                taken += 1
     return found
 
 
@@ -452,7 +460,8 @@ def _docs_answer(question: str, docs: dict[str, Any]) -> str:
         for w in re.findall(r"[a-z]{4,}", question.lower())
         if w not in {"what", "when", "your", "does", "with", "much", "have", "there"}
     ]
-    quotes = _sentences_with(passages, keywords, limit=3) or [(passages[0]["source"], passages[0]["text"])]
-    source = quotes[0][0]
-    body = " ".join(q[1] for q in quotes)
-    return f"{body}\n\n_Source: {source}._ Anything else I can help you with?"
+    quotes = _sentences_with(passages, keywords, limit=4, per_passage=2) or [(passages[0]["source"], passages[0]["text"])]
+    sources = list(dict.fromkeys(source for source, _ in quotes))
+    body = " ".join(sentence for _, sentence in quotes)
+    label = "Source" if len(sources) == 1 else "Sources"
+    return f"{body}\n\n_{label}: {'; '.join(sources)}._ Anything else I can help you with?"
