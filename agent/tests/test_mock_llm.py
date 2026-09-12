@@ -1,6 +1,6 @@
 from langchain_core.messages import AIMessage, HumanMessage
 
-from menumind_agent.mock_llm import ScriptedChatModel, extract_filters
+from menumind_agent.mock_llm import ScriptedChatModel, _docs_answer, extract_filters
 
 
 def test_it_extracts_filters_from_the_showcase_question() -> None:
@@ -55,3 +55,16 @@ def test_greetings_do_not_call_tools() -> None:
 
     assert not message.tool_calls
     assert "MenuMind" in message.content
+
+
+def test_document_answers_cover_each_part_of_a_two_part_question() -> None:
+    passages = [
+        {"source": "FAQ › Payment", "text": "We accept cash and cards. Riders carry a card terminal. We do not accept cheques."},
+        {"source": "FAQ › Delivery", "text": "We deliver to La Marsa and Gammarth. Delivery costs 3 TND."},
+    ]
+
+    answer = _docs_answer("Do you deliver to Gammarth? Which payment methods do you accept?", {"passages": passages})
+
+    assert "We deliver to La Marsa and Gammarth." in answer
+    assert "We accept cash and cards." in answer
+    assert "Sources: FAQ › Payment; FAQ › Delivery" in answer
