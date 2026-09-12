@@ -53,7 +53,7 @@ The demo restaurant is **Dar El Menu**, a (fictional) Tunisian restaurant in La 
 - REST API with Sanctum auth, roles, Form Request validation, API Resources, pagination, filtering and a **single JSON error envelope**.
 - **Hybrid search** (keyword + vector) with Typesense, and graceful degradation to SQL when Typesense is down.
 - **LangGraph agent** with five tools, per-session memory, provider-agnostic LLM layer and SSE streaming.
-- OpenAPI docs (Swagger UI), 123 automated tests across the three services, GitHub Actions CI, Docker Compose, Makefile.
+- OpenAPI docs (Swagger UI), 124 automated tests across the three services, GitHub Actions CI, Docker Compose, Makefile.
 
 ## Architecture
 
@@ -320,7 +320,7 @@ make lint             # ruff + oxlint + tsc
 | Suite | Tests | Covers |
 | --- | --- | --- |
 | Backend (PHPUnit) | 57 | Auth, dish filtering and sorting, allergen check, admin CRUD, orders (totals, ownership, status transitions), validation and the error envelope, document upload and chunking, hybrid search (Typesense faked over HTTP) and its SQL fallback, chat proxy (JSON, SSE, agent down) |
-| Agent (Pytest) | 45 | API client, every tool, the LangGraph loop with a scripted fake LLM, the order confirmation guard, session memory, provider selection and fallback (including a model that hangs or disconnects mid-turn), scripted model behaviour, `/chat` and `/chat/stream` endpoints. All LLM and HTTP calls are mocked. |
+| Agent (Pytest) | 46 | API client, every tool, the LangGraph loop with a scripted fake LLM, the order confirmation guard, session memory, provider selection and fallback (including a model that hangs or disconnects mid-turn), scripted model behaviour, `/chat` and `/chat/stream` endpoints. All LLM and HTTP calls are mocked. |
 | Frontend (Vitest) | 21 | Dish card, filter bar, chat bubble (steps, markdown, citations), login flow, API client, SSE parser |
 
 CI runs the backend suite against a real **PostgreSQL** service container, lints and tests the agent and the frontend, builds the frontend, and builds the three Docker images.
