@@ -2,7 +2,7 @@
 
 **An AI assistant for restaurants: guests ask in plain words, and a tool-using agent searches the real menu, checks allergens, answers from the house documents with citations, and places the order.**
 
-[![CI](https://github.com/YOUR_GITHUB_USERNAME/menumind/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_GITHUB_USERNAME/menumind/actions/workflows/ci.yml)
+[![CI](https://github.com/sirine2907/MenuMind/actions/workflows/ci.yml/badge.svg)](https://github.com/sirine2907/MenuMind/actions/workflows/ci.yml)
 ![PHP 8.3](https://img.shields.io/badge/PHP-8.3-777BB4?logo=php&logoColor=white)
 ![Laravel 12](https://img.shields.io/badge/Laravel-12-FF2D20?logo=laravel&logoColor=white)
 ![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
@@ -196,8 +196,8 @@ A LangGraph `StateGraph` with two nodes: the **agent** node calls the LLM (with 
 **Requirements:** Docker with Compose v2. About 8 GB of RAM for qwen2.5:7b (see below for smaller options).
 
 ```bash
-git clone https://github.com/YOUR_GITHUB_USERNAME/menumind.git
-cd menumind
+git clone https://github.com/sirine2907/MenuMind.git
+cd MenuMind
 docker compose up --build        # or: make up
 ```
 
