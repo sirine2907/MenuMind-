@@ -2,57 +2,76 @@
 
 namespace App\Support;
 
-/**
- * Immutable value object describing a menu query. Shared by the SQL
- * repository and the Typesense search so both apply identical rules.
- */
-final readonly class DishFilters
+// Holds the menu filters so the SQL query and the Typesense search use the same rules.
+class DishFilters
 {
-    /**
-     * @param  list<string>  $excludeAllergens  allergen slugs that must NOT be present
-     */
-    public function __construct(
-        public ?string $search = null,
-        public ?string $category = null,
-        public ?float $minPrice = null,
-        public ?float $maxPrice = null,
-        public ?bool $vegetarian = null,
-        public ?bool $vegan = null,
-        public ?int $maxSpicy = null,
-        public array $excludeAllergens = [],
-        public bool $onlyAvailable = true,
-        public string $sort = 'menu',
-        public int $perPage = 12,
-    ) {}
+    public ?string $search = null;
 
-    /**
-     * @param  array<string, mixed>  $input  validated request input
-     */
+    public ?string $category = null;
+
+    public ?float $minPrice = null;
+
+    public ?float $maxPrice = null;
+
+    public ?bool $vegetarian = null;
+
+    public ?bool $vegan = null;
+
+    public ?int $maxSpicy = null;
+
+    public array $excludeAllergens = [];
+
+    public bool $onlyAvailable = true;
+
+    public string $sort = 'menu';
+
+    public int $perPage = 12;
+
     public static function fromArray(array $input): self
     {
-        $bool = static fn ($value): ?bool => $value === null ? null : filter_var($value, FILTER_VALIDATE_BOOL);
+        $filters = new self;
 
-        return new self(
-            search: isset($input['search']) && trim((string) $input['search']) !== '' ? trim((string) $input['search']) : null,
-            category: $input['category'] ?? null,
-            minPrice: isset($input['min_price']) ? (float) $input['min_price'] : null,
-            maxPrice: isset($input['max_price']) ? (float) $input['max_price'] : null,
-            vegetarian: $bool($input['vegetarian'] ?? null),
-            vegan: $bool($input['vegan'] ?? null),
-            maxSpicy: isset($input['max_spicy']) ? (int) $input['max_spicy'] : null,
-            excludeAllergens: AllergenResolver::resolve($input['exclude_allergens'] ?? []),
-            onlyAvailable: $bool($input['available'] ?? true) ?? true,
-            sort: $input['sort'] ?? 'menu',
-            perPage: (int) ($input['per_page'] ?? 12),
-        );
+        if (! empty($input['search']) && trim($input['search']) !== '') {
+            $filters->search = trim($input['search']);
+        }
+
+        $filters->category = $input['category'] ?? null;
+
+        if (isset($input['min_price'])) {
+            $filters->minPrice = (float) $input['min_price'];
+        }
+
+        if (isset($input['max_price'])) {
+            $filters->maxPrice = (float) $input['max_price'];
+        }
+
+        if (isset($input['vegetarian'])) {
+            $filters->vegetarian = filter_var($input['vegetarian'], FILTER_VALIDATE_BOOL);
+        }
+
+        if (isset($input['vegan'])) {
+            $filters->vegan = filter_var($input['vegan'], FILTER_VALIDATE_BOOL);
+        }
+
+        if (isset($input['max_spicy'])) {
+            $filters->maxSpicy = (int) $input['max_spicy'];
+        }
+
+        if (isset($input['available'])) {
+            $filters->onlyAvailable = filter_var($input['available'], FILTER_VALIDATE_BOOL);
+        }
+
+        $filters->excludeAllergens = AllergenResolver::resolve($input['exclude_allergens'] ?? []);
+        $filters->sort = $input['sort'] ?? 'menu';
+        $filters->perPage = (int) ($input['per_page'] ?? 12);
+
+        return $filters;
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    // Used to echo back the active filters in API responses
     public function toArray(): array
     {
-        return array_filter([
+        $values = [
             'search' => $this->search,
             'category' => $this->category,
             'min_price' => $this->minPrice,
@@ -61,6 +80,8 @@ final readonly class DishFilters
             'vegan' => $this->vegan,
             'max_spicy' => $this->maxSpicy,
             'exclude_allergens' => $this->excludeAllergens ?: null,
-        ], fn ($v) => $v !== null);
+        ];
+
+        return array_filter($values, fn ($value) => $value !== null);
     }
 }
