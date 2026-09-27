@@ -12,9 +12,6 @@ class Allergen extends Model
 
     protected $fillable = ['name', 'slug', 'icon'];
 
-    /**
-     * @return BelongsToMany<Dish, $this>
-     */
     public function dishes(): BelongsToMany
     {
         return $this->belongsToMany(Dish::class);

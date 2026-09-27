@@ -28,9 +28,6 @@ class Dish extends Model
         'image_url',
     ];
 
-    /**
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -42,25 +39,16 @@ class Dish extends Model
         ];
     }
 
-    /**
-     * @return BelongsTo<Restaurant, $this>
-     */
     public function restaurant(): BelongsTo
     {
         return $this->belongsTo(Restaurant::class);
     }
 
-    /**
-     * @return BelongsTo<Category, $this>
-     */
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
     }
 
-    /**
-     * @return BelongsToMany<Allergen, $this>
-     */
     public function allergens(): BelongsToMany
     {
         return $this->belongsToMany(Allergen::class);

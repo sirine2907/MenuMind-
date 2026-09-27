@@ -22,9 +22,6 @@ class Document extends Model
         'indexed_at',
     ];
 
-    /**
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -33,25 +30,16 @@ class Document extends Model
         ];
     }
 
-    /**
-     * @return BelongsTo<Restaurant, $this>
-     */
     public function restaurant(): BelongsTo
     {
         return $this->belongsTo(Restaurant::class);
     }
 
-    /**
-     * @return BelongsTo<User, $this>
-     */
     public function uploader(): BelongsTo
     {
         return $this->belongsTo(User::class, 'uploaded_by');
     }
 
-    /**
-     * @return HasMany<DocumentChunk, $this>
-     */
     public function chunks(): HasMany
     {
         return $this->hasMany(DocumentChunk::class)->orderBy('position');
