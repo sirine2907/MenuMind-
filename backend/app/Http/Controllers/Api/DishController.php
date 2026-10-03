@@ -18,7 +18,7 @@ use Illuminate\Http\Response;
 
 class DishController extends Controller
 {
-    public function __construct(private readonly DishService $dishes) {}
+    public function __construct(private DishService $dishes) {}
 
     public function index(IndexDishRequest $request): AnonymousResourceCollection
     {

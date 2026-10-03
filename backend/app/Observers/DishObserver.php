@@ -6,13 +6,11 @@ use App\Models\Dish;
 use App\Services\Search\SearchIndexer;
 use Illuminate\Contracts\Events\ShouldHandleEventsAfterCommit;
 
-/**
- * Mirrors every dish write into Typesense. Runs after the surrounding
- * transaction commits, so a rolled-back write never reaches the index.
- */
+// Keeps the Typesense index up to date when a dish is saved or deleted.
+// "AfterCommit" = it only runs once the database transaction is committed.
 class DishObserver implements ShouldHandleEventsAfterCommit
 {
-    public function __construct(private readonly SearchIndexer $indexer) {}
+    public function __construct(private SearchIndexer $indexer) {}
 
     public function saved(Dish $dish): void
     {

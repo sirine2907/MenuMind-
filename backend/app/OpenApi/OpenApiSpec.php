@@ -4,11 +4,8 @@ namespace App\OpenApi;
 
 use OpenApi\Attributes as OA;
 
-/**
- * OpenAPI description of the MenuMind REST API, rendered by l5-swagger at
- * /api/documentation. Kept in one place instead of on the controllers so the
- * controllers stay readable.
- */
+// Swagger documentation of the API (shown at /api/documentation).
+// I keep it in this file so the controllers stay short.
 #[OA\Info(
     version: '1.0.0',
     title: 'MenuMind API',

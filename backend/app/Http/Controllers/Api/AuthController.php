@@ -13,7 +13,7 @@ use Illuminate\Http\Response;
 
 class AuthController extends Controller
 {
-    public function __construct(private readonly AuthService $auth) {}
+    public function __construct(private AuthService $auth) {}
 
     public function register(RegisterRequest $request): JsonResponse
     {
@@ -41,9 +41,6 @@ class AuthController extends Controller
         return response()->noContent();
     }
 
-    /**
-     * @param  array{user: \App\Models\User, token: string}  $result
-     */
     private function tokenResponse(array $result, int $status = 200): JsonResponse
     {
         return response()->json([

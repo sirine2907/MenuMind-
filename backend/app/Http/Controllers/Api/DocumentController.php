@@ -14,7 +14,7 @@ use Illuminate\Http\Response;
 
 class DocumentController extends Controller
 {
-    public function __construct(private readonly DocumentService $documents) {}
+    public function __construct(private DocumentService $documents) {}
 
     public function index(): AnonymousResourceCollection
     {

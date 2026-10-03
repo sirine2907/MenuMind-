@@ -2,10 +2,7 @@
 
 return [
 
-    /*
-    | When disabled (or unreachable) MenuMind keeps working: writes skip the
-    | index and searches fall back to SQL keyword matching.
-    */
+    // If false (or if Typesense is down) the search uses the database instead
     'enabled' => env('TYPESENSE_ENABLED', true),
 
     'host' => env('TYPESENSE_HOST', 'localhost'),
@@ -14,16 +11,10 @@ return [
     'api_key' => env('TYPESENSE_API_KEY', 'xyz'),
     'timeout' => (int) env('TYPESENSE_TIMEOUT', 10),
 
-    /*
-    | Built-in Typesense embedding model: vectors are computed inside
-    | Typesense itself, so no external embedding API (or key) is needed.
-    */
+    // Typesense creates the embeddings itself with this model, no OpenAI key needed
     'embedding_model' => env('TYPESENSE_EMBEDDING_MODEL', 'ts/all-MiniLM-L12-v2'),
 
-    /*
-    | Weight given to the vector side of hybrid search (0 = keyword only,
-    | 1 = semantic only). Typesense fuses both rankings with this weight.
-    */
+    // Weight of the vector search in the hybrid search (0 = keywords only, 1 = vectors only)
     'hybrid_alpha' => (float) env('TYPESENSE_HYBRID_ALPHA', 0.4),
 
     'collections' => [
