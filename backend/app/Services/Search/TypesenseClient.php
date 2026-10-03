@@ -2,38 +2,31 @@
 
 namespace App\Services\Search;
 
-use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 
-/**
- * Thin wrapper around the Typesense REST API built on Laravel's HTTP client,
- * which keeps it dependency-free and trivially fakeable in tests.
- */
+// Small wrapper around the Typesense REST API, using Laravel's HTTP client
+// (so it is easy to fake in the tests).
 class TypesenseClient
 {
     public function __construct(
-        private readonly string $baseUrl,
-        private readonly string $apiKey,
-        private readonly int $timeout = 10,
+        private string $baseUrl,
+        private string $apiKey,
+        private int $timeout = 10,
     ) {}
 
     public static function fromConfig(): self
     {
         $config = config('typesense');
+        $url = $config['protocol'].'://'.$config['host'].':'.$config['port'];
 
-        return new self(
-            sprintf('%s://%s:%s', $config['protocol'], $config['host'], $config['port']),
-            (string) $config['api_key'],
-            (int) $config['timeout'],
-        );
+        return new self($url, (string) $config['api_key'], (int) $config['timeout']);
     }
 
     public function isHealthy(): bool
     {
         try {
             return $this->request(2)->get('/health')->json('ok') === true;
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             return false;
         }
     }
@@ -43,14 +36,9 @@ class TypesenseClient
         return $this->request()->get("/collections/{$name}")->successful();
     }
 
-    /**
-     * @param  array<string, mixed>  $schema
-     * @return array<string, mixed>
-     */
     public function createCollection(array $schema): array
     {
-        // Creating a collection with an auto-embedding field downloads the model
-        // the first time, which can take a while.
+        // the first time, Typesense downloads the embedding model, so this can be slow
         return $this->request(300)->post('/collections', $schema)->throw()->json();
     }
 
@@ -63,43 +51,37 @@ class TypesenseClient
         }
     }
 
-    /**
-     * Bulk upsert through the JSONL import endpoint.
-     *
-     * @param  list<array<string, mixed>>  $documents
-     * @return int number of successfully imported documents
-     */
+    // Imports many documents at once (one JSON object per line)
     public function import(string $collection, array $documents): int
     {
-        if ($documents === []) {
+        if (count($documents) === 0) {
             return 0;
         }
 
-        $body = implode("\n", array_map(fn ($doc) => json_encode($doc, JSON_UNESCAPED_UNICODE), $documents));
+        $lines = [];
+        foreach ($documents as $document) {
+            $lines[] = json_encode($document, JSON_UNESCAPED_UNICODE);
+        }
 
         $response = $this->request(300)
-            ->withBody($body, 'text/plain')
+            ->withBody(implode("\n", $lines), 'text/plain')
             ->post("/collections/{$collection}/documents/import?action=upsert")
             ->throw();
 
-        $results = array_filter(explode("\n", trim($response->body())));
-        $ok = 0;
-
-        foreach ($results as $line) {
+        $imported = 0;
+        foreach (explode("\n", trim($response->body())) as $line) {
             $result = json_decode($line, true);
-            if (($result['success'] ?? false) === true) {
-                $ok++;
-            } else {
+
+            if (($result['success'] ?? false) !== true) {
                 throw new \RuntimeException('Typesense import failed: '.($result['error'] ?? $line));
             }
+
+            $imported++;
         }
 
-        return $ok;
+        return $imported;
     }
 
-    /**
-     * @param  array<string, mixed>  $document
-     */
     public function upsert(string $collection, array $document): void
     {
         $this->request(60)->post("/collections/{$collection}/documents?action=upsert", $document)->throw();
@@ -123,18 +105,12 @@ class TypesenseClient
         }
     }
 
-    /**
-     * @param  array<string, mixed>  $params
-     * @return array<string, mixed>
-     *
-     * @throws RequestException
-     */
     public function search(string $collection, array $params): array
     {
         return $this->request()->get("/collections/{$collection}/documents/search", $params)->throw()->json();
     }
 
-    private function request(?int $timeout = null): PendingRequest
+    private function request(?int $timeout = null)
     {
         return Http::baseUrl($this->baseUrl)
             ->withHeaders(['X-TYPESENSE-API-KEY' => $this->apiKey])

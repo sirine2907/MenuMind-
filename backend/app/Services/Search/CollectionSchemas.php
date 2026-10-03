@@ -2,16 +2,10 @@
 
 namespace App\Services\Search;
 
-/**
- * Typesense collection definitions. Each one carries an `embedding` field
- * that Typesense fills itself from the listed source fields, which is what
- * makes hybrid (keyword + vector) search possible without any external API.
- */
-final class CollectionSchemas
+// Typesense collections. The "embedding" field is filled by Typesense itself
+// with a built-in model, that's what makes the hybrid search possible.
+class CollectionSchemas
 {
-    /**
-     * @return array<string, mixed>
-     */
     public static function dishes(): array
     {
         return [
@@ -34,9 +28,6 @@ final class CollectionSchemas
         ];
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     public static function docChunks(): array
     {
         return [
@@ -54,17 +45,13 @@ final class CollectionSchemas
         ];
     }
 
-    /**
-     * @param  list<string>  $from
-     * @return array<string, mixed>
-     */
-    private static function embeddingField(array $from): array
+    private static function embeddingField(array $fromFields): array
     {
         return [
             'name' => 'embedding',
             'type' => 'float[]',
             'embed' => [
-                'from' => $from,
+                'from' => $fromFields,
                 'model_config' => ['model_name' => config('typesense.embedding_model')],
             ],
         ];
