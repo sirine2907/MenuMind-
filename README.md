@@ -118,8 +118,7 @@ flowchart LR
 
 **Ingestion (documents).** An admin uploads a `.md`, `.txt` or `.pdf` file. `TextExtractor` reads it (PDFs via `smalot/pdfparser`) and normalizes encoding and whitespace. `TextChunker` then splits it in a Markdown-aware way:
 - each heading starts a new chunk and is kept as metadata, so a citation can say *Allergen & Dietary Policy › Peanuts and tree nuts*;
-- paragraphs are packed up to ~700 characters, and oversized paragraphs are split on sentence boundaries;
-- consecutive chunks share a short sentence overlap.
+- paragraphs are grouped up to ~700 characters, and paragraphs that are too long are cut between sentences.
 
 Chunks are stored in PostgreSQL (`document_chunks`), then pushed to the Typesense `doc_chunks` collection.
 
@@ -135,7 +134,7 @@ Typesense computes the vectors itself, both at index time and for each query, so
 
 **Hybrid query.** A search sends `query_by=name,description,category,embedding` with `vector_query=embedding:([], alpha: 0.4)`. Typesense runs keyword search and nearest-neighbour search in one request and fuses the two rankings (rank fusion, 40% weight on the semantic side). A vague request like *"something comforting without meat"* can then match dishes by meaning, while exact dish names still benefit from keyword matching.
 
-**Structured filters in the same query.** Dish searches also carry a `filter_by` built from the same `DishFilters` value object that the SQL repository uses, so the menu page and the assistant apply identical rules:
+**Structured filters in the same query.** Dish searches also carry a `filter_by` built from the same `DishFilters` object that the SQL repository uses, so the menu page and the assistant apply identical rules:
 
 ```
 restaurant_id:=1 && available:=true && price:<=25 && is_vegetarian:=true && allergens:!=[`peanuts`]
@@ -145,7 +144,7 @@ Free-text allergies are normalized first (`peanut` → `peanuts`, `milk` → `da
 
 **Sync.** `DishObserver` upserts or deletes a dish in Typesense after every committed write. `php artisan menumind:reindex` (or the admin button) rebuilds both collections from SQL at any time.
 
-**Graceful degradation.** If Typesense is unreachable, `SearchService` falls back to an in-database keyword scorer with the same filters. The response says which engine answered (`typesense_hybrid` or `sql_keyword`), and the admin dashboard surfaces it.
+**Graceful degradation.** If Typesense is unreachable, `SearchService` falls back to a simple keyword search in the database, with the same filters. The response says which engine answered (`typesense_hybrid` or `sql_keyword`), and the admin dashboard surfaces it.
 
 **Grounding.** The agent only sees what the tools return. Citations are built from the tools' raw results (not from the LLM's text) and filtered to the dishes the answer actually mentions.
 
@@ -189,7 +188,7 @@ A LangGraph `StateGraph` with two nodes: the **agent** node calls the LLM (with 
 
 **Provider-agnostic.** `create_chat_model()` returns a LangChain chat model for `ollama`, `openai`, `azure_openai`, `anthropic`, `gemini` or `mock`, chosen by `LLM_PROVIDER`. The default is Ollama with **qwen2.5:7b** (good tool calling for its size); on low-RAM machines use **llama3.2:3b**.
 
-**The scripted `mock` model** is a deterministic stand-in that speaks the same tool-calling protocol: it emits real tool calls, the graph executes them against the live API, and it writes its answer only from the tool results. It powers offline demos and screenshots. The agent also falls back to it automatically when the configured provider is unusable: Ollama down, model still being pulled, API key missing, or a turn that times out or loses its connection halfway. In that last case the turn resumes from the LangGraph checkpoint, so tool calls already made are not repeated. The UI shows a *Demo model* badge when the fallback is active. Set `LLM_FALLBACK_TO_MOCK=false` to turn this off.
+**The scripted `mock` model** is a deterministic stand-in that speaks the same tool-calling protocol: it emits real tool calls, the graph executes them against the live API, and it writes its answer only from the tool results. It powers offline demos and screenshots. The agent also falls back to it automatically when the configured provider is unusable: Ollama down, model still being pulled, API key missing, or Ollama not answering within `LLM_TIMEOUT_SECONDS`. In that last case the turn continues from the LangGraph checkpoint, so tool calls already made are not repeated. The UI shows a *Demo model* badge when the fallback is active. Set `LLM_FALLBACK_TO_MOCK=false` to turn this off.
 
 ## Quick start
 
@@ -268,7 +267,7 @@ Compose reads a root `.env` (all values have working defaults). Each service als
 | `LLM_PROVIDER` | `ollama` | agent | `ollama`, `openai`, `azure_openai`, `anthropic`, `gemini` or `mock` |
 | `LLM_MODEL` | – | agent | Overrides the provider's default model |
 | `LLM_FALLBACK_TO_MOCK` | `true` | agent | Use the scripted model when the provider is unusable |
-| `LLM_TIMEOUT_SECONDS` | `180` | agent | Max duration of one turn |
+| `LLM_TIMEOUT_SECONDS` | `180` | agent | How long to wait for the LLM before giving up (or using the mock) |
 | `OLLAMA_MODEL` | `qwen2.5:7b` | agent, ollama-init | Model pulled and used (`llama3.2:3b` for low RAM) |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` | – / `gpt-4.1-mini` | agent | OpenAI |
 | `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT` | – | agent | Azure OpenAI |
@@ -336,7 +335,7 @@ menumind/
 │   │   ├── Http/                Controllers/Api, Requests (validation), Resources, role middleware
 │   │   ├── Models/ Enums/ Observers/ Policies/
 │   │   ├── OpenApi/             OpenAPI spec (PHP attributes)
-│   │   ├── Repositories/        DishRepository (contract + Eloquent implementation)
+│   │   ├── Repositories/        DishRepository (all the dish queries and filters)
 │   │   ├── Services/            Auth, Dish, Order, Chat/AgentClient,
 │   │   │                        Documents/ (extract, chunk, ingest), Search/ (Typesense client, schemas, indexer, hybrid search)
 │   │   └── Support/             DishFilters value object, AllergenResolver
@@ -363,14 +362,14 @@ menumind/
 - **Guardrails in code, not only in the prompt.** The order confirmation check runs in the tools node and totals are recomputed server-side, so a confused or prompt-injected model can't place an unconfirmed order or invent a price.
 - **SQL is the source of truth; Typesense is a derived index.** Document chunks are stored in PostgreSQL too, so the index can be dropped and rebuilt at any time (`menumind:reindex`). Search degrades to SQL instead of failing, and says so.
 - **Embeddings inside Typesense.** The built-in `all-MiniLM-L12-v2` model removes an embedding service, its API key and a network hop. The trade-off is a small English-centric model. A multilingual model, or OpenAI embeddings, is a one-line change in the collection schema.
-- **One value object for filters.** `DishFilters` feeds both the SQL repository and the Typesense `filter_by` builder, so the menu page and the assistant can't disagree about what "vegetarian under 25 TND without peanuts" means.
+- **One object for filters.** `DishFilters` feeds both the SQL repository and the Typesense `filter_by` builder, so the menu page and the assistant can't disagree about what "vegetarian under 25 TND without peanuts" means.
 - **A scripted model that follows the real protocol.** Rather than a canned-answer mock, the fallback model emits tool calls that run against the real API. Demos, screenshots and CI-style smoke tests stay deterministic and free while still exercising the whole pipeline.
 - **SSE relayed through Laravel.** Streaming is one-way, so Server-Sent Events are enough (no WebSocket server). Relaying through `/api/chat` keeps one origin, one auth system and lets nginx stream with `proxy_buffering off`.
 - **`php artisan serve` with 8 workers instead of php-fpm.** It is fewer moving parts for a demo stack. It is not a production server; Octane/FrankenPHP or FPM is on the roadmap.
 - **In-memory conversation memory.** LangGraph's `InMemorySaver` is simple and fast but resets when the agent restarts. Moving to the Postgres checkpointer is a constructor change.
 - **Single restaurant, multi-tenant-ready schema.** Every table carries `restaurant_id` and the code goes through `Restaurant::current()`, so tenancy becomes a routing and scoping concern later rather than a migration.
 - **Money as `decimal(8,3)`.** The Tunisian dinar has 1000 millimes. Order lines snapshot the dish name and unit price, so later menu edits never rewrite past orders.
-- **Repository only where it pays off.** Dish querying is shared by the listing, the search fallback and the indexer, so it has a repository contract. Other aggregates use services directly.
+- **A repository only for dishes.** Dish queries are shared by the menu listing, the search fallback and the indexer, so they live in one `DishRepository` class. Orders, documents and users only need simple queries, so their services use Eloquent directly.
 
 ## Roadmap
 
