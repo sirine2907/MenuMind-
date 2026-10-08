@@ -2,23 +2,23 @@
 
 namespace App\Exceptions;
 
-use RuntimeException;
+use Exception;
 
-/**
- * Domain-level error that should reach the client with a stable, machine
- * readable code (e.g. "dish_unavailable") instead of a generic 500.
- */
-class ApiException extends RuntimeException
+// Thrown for business errors, e.g. ordering a dish that is not available.
+class ApiException extends Exception
 {
-    /**
-     * @param  array<string, mixed>  $details
-     */
-    public function __construct(
-        string $message,
-        public readonly string $errorCode = 'bad_request',
-        public readonly int $status = 400,
-        public readonly array $details = [],
-    ) {
+    public string $errorCode;
+
+    public int $status;
+
+    public array $details;
+
+    public function __construct(string $message, string $errorCode = 'bad_request', int $status = 400, array $details = [])
+    {
         parent::__construct($message);
+
+        $this->errorCode = $errorCode;
+        $this->status = $status;
+        $this->details = $details;
     }
 }

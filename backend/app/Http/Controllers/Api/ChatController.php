@@ -11,7 +11,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ChatController extends Controller
 {
-    public function __construct(private readonly AgentClient $agent) {}
+    public function __construct(private AgentClient $agent) {}
 
     public function __invoke(ChatRequest $request): JsonResponse|StreamedResponse
     {
@@ -31,8 +31,7 @@ class ChatController extends Controller
             ]]);
         }
 
-        // Connect before streaming starts, so a dead agent still yields a
-        // proper JSON error instead of a half-open event stream.
+        // we connect to the agent first, so if it is down the user gets a normal JSON error
         $upstream = $this->agent->stream($payload);
         $body = $upstream->toPsrResponse()->getBody();
 

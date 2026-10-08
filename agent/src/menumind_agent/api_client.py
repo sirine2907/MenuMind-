@@ -1,8 +1,4 @@
-"""Async client for the MenuMind Laravel API.
-
-Every request carries the end user's own Sanctum token, so the agent can
-never do more than the customer it is talking to.
-"""
+"""Client for the Laravel API. It sends the customer's own token with each request."""
 
 from typing import Any
 

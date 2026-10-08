@@ -1,10 +1,7 @@
-"""A scripted, deterministic chat model used when no real LLM is available.
+"""Fake LLM used when no real model is available (LLM_PROVIDER=mock).
 
-It is NOT a canned-answer bot: it follows the same protocol as a real
-tool-calling model. It reads the conversation, emits real tool calls, which
-the graph executes against the live API, then writes its answer only from the
-tool results. That keeps the demo grounded and lets the whole pipeline
-(LangGraph, tools, citations, streaming, UI) be exercised without a model.
+It works with simple rules, but like a real model it calls the tools and
+writes its answer from the tool results, so the whole app can be demoed.
 """
 
 import asyncio

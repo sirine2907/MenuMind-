@@ -4,14 +4,9 @@ namespace App\Support;
 
 use Illuminate\Support\Str;
 
-/**
- * Maps free-text allergen mentions ("peanut", "milk", "nuts", "Gluten")
- * onto the canonical slugs stored in the `allergens` table. Customers and
- * the LLM rarely use our exact vocabulary, so this keeps filters forgiving.
- */
-final class AllergenResolver
+// Turns what people type ("peanut", "milk", "nuts") into the allergen slugs we store.
+class AllergenResolver
 {
-    /** @var array<string, list<string>> */
     private const SYNONYMS = [
         'peanut' => ['peanuts'],
         'peanuts' => ['peanuts'],
@@ -52,31 +47,30 @@ final class AllergenResolver
         'mustard' => ['mustard'],
     ];
 
-    /**
-     * @param  string|array<int, string>|null  $input  comma separated string or list
-     * @return list<string>
-     */
-    public static function resolve(string|array|null $input): array
+    // Accepts "peanuts,gluten" or ['peanuts', 'gluten'] and returns unique slugs
+    public static function resolve($input): array
     {
-        if ($input === null || $input === '' || $input === []) {
+        if (empty($input)) {
             return [];
         }
 
-        $terms = is_array($input) ? $input : explode(',', $input);
+        $words = is_array($input) ? $input : explode(',', $input);
         $slugs = [];
 
-        foreach ($terms as $term) {
-            $key = Str::slug(trim((string) $term));
+        foreach ($words as $word) {
+            $key = Str::slug(trim($word));
 
             if ($key === '') {
                 continue;
             }
 
             foreach (self::SYNONYMS[$key] ?? [$key] as $slug) {
-                $slugs[$slug] = true;
+                if (! in_array($slug, $slugs)) {
+                    $slugs[] = $slug;
+                }
             }
         }
 
-        return array_keys($slugs);
+        return $slugs;
     }
 }

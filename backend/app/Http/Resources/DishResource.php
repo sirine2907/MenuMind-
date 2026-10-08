@@ -2,13 +2,9 @@
 
 namespace App\Http\Resources;
 
-use App\Models\Dish;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/**
- * @mixin Dish
- */
 class DishResource extends JsonResource
 {
     /**

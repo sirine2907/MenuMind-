@@ -12,7 +12,7 @@ use Illuminate\Http\Request;
 
 class SearchController extends Controller
 {
-    public function __construct(private readonly SearchService $search) {}
+    public function __construct(private SearchService $search) {}
 
     public function dishes(SearchDishesRequest $request): JsonResponse
     {

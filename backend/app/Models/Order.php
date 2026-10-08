@@ -14,9 +14,6 @@ class Order extends Model
 
     protected $fillable = ['user_id', 'restaurant_id', 'status', 'total', 'notes'];
 
-    /**
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -25,25 +22,16 @@ class Order extends Model
         ];
     }
 
-    /**
-     * @return BelongsTo<User, $this>
-     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * @return BelongsTo<Restaurant, $this>
-     */
     public function restaurant(): BelongsTo
     {
         return $this->belongsTo(Restaurant::class);
     }
 
-    /**
-     * @return HasMany<OrderItem, $this>
-     */
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);

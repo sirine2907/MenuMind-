@@ -5,149 +5,130 @@ namespace App\Services\Search;
 use App\Models\Dish;
 use App\Models\DocumentChunk;
 use App\Models\Restaurant;
-use App\Repositories\Contracts\DishRepository;
+use App\Repositories\DishRepository;
 use App\Support\AllergenResolver;
 use App\Support\DishFilters;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
-/**
- * Hybrid (BM25 keyword + vector) search over dishes and document chunks.
- *
- * Typesense is the primary engine. If it is disabled or unreachable the
- * service degrades to an in-database keyword scorer so the assistant keeps
- * answering, only with less semantic recall. Every response says which
- * engine produced it.
- */
+// Hybrid search (keyword + vector) with Typesense.
+// If Typesense is down we fall back to a simple keyword search in the database.
 class SearchService
 {
-    public const ENGINE_HYBRID = 'typesense_hybrid';
-
-    public const ENGINE_FALLBACK = 'sql_keyword';
-
-    private const STOPWORDS = [
-        'the', 'and', 'for', 'with', 'what', 'which', 'can', 'you', 'your', 'are', 'have', 'has', 'any',
-        'dish', 'dishes', 'food', 'something', 'some', 'want', 'would', 'like', 'please', 'under', 'less',
-        'than', 'more', 'menu', 'order', 'give', 'show', 'there', 'that', 'this', 'from', 'about', 'does',
-        'tnd', 'dinar', 'dinars', 'cheap', 'i\'m', 'allergic', 'free', 'without', 'not', 'how', 'when',
+    // words that don't help to find a dish (diet and allergy words are handled by the filters)
+    private const IGNORED_WORDS = [
+        'what', 'which', 'with', 'without', 'dish', 'dishes', 'food', 'want', 'would', 'like', 'please',
+        'under', 'less', 'than', 'more', 'menu', 'order', 'give', 'show', 'there', 'that', 'this', 'from',
+        'about', 'does', 'have', 'some', 'something', 'much', 'dinar', 'dinars', 'cheap', 'your',
+        'allergic', 'allergy', 'allergies', 'vegetarian', 'vegan', 'veggie',
     ];
 
-    private const DIET_WORDS = ['vegetarian', 'vegan', 'veggie', 'allergy', 'allergies', 'allergic', 'meatless'];
-
     public function __construct(
-        private readonly TypesenseClient $client,
-        private readonly DishRepository $dishes,
+        private TypesenseClient $client,
+        private DishRepository $dishes,
     ) {}
 
-    /**
-     * @return array{engine: string, query: string, filters: array<string, mixed>, hits: list<array<string, mixed>>}
-     */
     public function searchDishes(Restaurant $restaurant, string $query, DishFilters $filters, int $limit = 8): array
     {
-        $hits = $this->attempt(
-            fn () => $this->typesenseDishes($restaurant, $query, $filters, $limit),
-            fn () => $this->fallbackDishes($restaurant, $query, $filters, $limit),
-            $engine,
-        );
+        $engine = 'typesense_hybrid';
+        $hits = null;
+
+        if (config('typesense.enabled')) {
+            try {
+                $hits = $this->typesenseDishes($restaurant, $query, $filters, $limit);
+            } catch (\Throwable $e) {
+                Log::warning('Typesense search failed, using the database instead', ['error' => $e->getMessage()]);
+            }
+        }
+
+        if ($hits === null) {
+            $engine = 'sql_keyword';
+            $hits = $this->databaseDishes($restaurant, $query, $filters, $limit);
+        }
 
         return ['engine' => $engine, 'query' => $query, 'filters' => $filters->toArray(), 'hits' => $hits];
     }
 
-    /**
-     * @return array{engine: string, query: string, hits: list<array<string, mixed>>}
-     */
     public function searchDocs(Restaurant $restaurant, string $query, int $limit = 4): array
     {
-        $hits = $this->attempt(
-            fn () => $this->typesenseDocs($restaurant, $query, $limit),
-            fn () => $this->fallbackDocs($restaurant, $query, $limit),
-            $engine,
-        );
+        $engine = 'typesense_hybrid';
+        $hits = null;
+
+        if (config('typesense.enabled')) {
+            try {
+                $hits = $this->typesenseDocs($restaurant, $query, $limit);
+            } catch (\Throwable $e) {
+                Log::warning('Typesense search failed, using the database instead', ['error' => $e->getMessage()]);
+            }
+        }
+
+        if ($hits === null) {
+            $engine = 'sql_keyword';
+            $hits = $this->databaseDocs($restaurant, $query, $limit);
+        }
 
         return ['engine' => $engine, 'query' => $query, 'hits' => $hits];
     }
 
-    /**
-     * Builds a Typesense filter_by expression from the shared filter object.
-     */
+    // Builds the Typesense filter, e.g. "restaurant_id:=1 && price:<=25 && allergens:!=[`peanuts`]"
     public function buildFilterBy(int $restaurantId, DishFilters $filters): string
     {
-        $clauses = ["restaurant_id:={$restaurantId}"];
+        $parts = ["restaurant_id:={$restaurantId}"];
 
         if ($filters->onlyAvailable) {
-            $clauses[] = 'available:=true';
+            $parts[] = 'available:=true';
         }
         if ($filters->category) {
-            $clauses[] = 'category_slug:='.$this->escape($filters->category);
+            $parts[] = 'category_slug:='.$this->escape($filters->category);
         }
         if ($filters->minPrice !== null) {
-            $clauses[] = 'price:>='.$filters->minPrice;
+            $parts[] = 'price:>='.$filters->minPrice;
         }
         if ($filters->maxPrice !== null) {
-            $clauses[] = 'price:<='.$filters->maxPrice;
+            $parts[] = 'price:<='.$filters->maxPrice;
         }
         if ($filters->vegetarian !== null) {
-            $clauses[] = 'is_vegetarian:='.($filters->vegetarian ? 'true' : 'false');
+            $parts[] = 'is_vegetarian:='.($filters->vegetarian ? 'true' : 'false');
         }
         if ($filters->vegan !== null) {
-            $clauses[] = 'is_vegan:='.($filters->vegan ? 'true' : 'false');
+            $parts[] = 'is_vegan:='.($filters->vegan ? 'true' : 'false');
         }
         if ($filters->maxSpicy !== null) {
-            $clauses[] = 'spicy_level:<='.$filters->maxSpicy;
+            $parts[] = 'spicy_level:<='.$filters->maxSpicy;
         }
-        if ($filters->excludeAllergens !== []) {
-            $values = implode(',', array_map(fn ($s) => $this->escape($s), $filters->excludeAllergens));
-            $clauses[] = "allergens:!=[{$values}]";
+        if (count($filters->excludeAllergens) > 0) {
+            $allergens = array_map(fn ($slug) => $this->escape($slug), $filters->excludeAllergens);
+            $parts[] = 'allergens:!=['.implode(',', $allergens).']';
         }
 
-        return implode(' && ', $clauses);
+        return implode(' && ', $parts);
     }
 
-    /**
-     * @param  callable(): list<array<string, mixed>>  $primary
-     * @param  callable(): list<array<string, mixed>>  $fallback
-     * @return list<array<string, mixed>>
-     */
-    private function attempt(callable $primary, callable $fallback, ?string &$engine): array
-    {
-        if (config('typesense.enabled')) {
-            try {
-                $engine = self::ENGINE_HYBRID;
-
-                return $primary();
-            } catch (\Throwable $e) {
-                Log::warning('Typesense search failed, falling back to SQL', ['error' => $e->getMessage()]);
-            }
-        }
-
-        $engine = self::ENGINE_FALLBACK;
-
-        return $fallback();
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
     private function typesenseDishes(Restaurant $restaurant, string $query, DishFilters $filters, int $limit): array
     {
-        $hasQuery = trim($query) !== '' && trim($query) !== '*';
-
-        $result = $this->client->search(config('typesense.collections.dishes'), array_filter([
-            'q' => $hasQuery ? $query : '*',
-            'query_by' => $hasQuery ? 'name,description,category,embedding' : 'name',
-            'vector_query' => $hasQuery ? 'embedding:([], alpha: '.config('typesense.hybrid_alpha').')' : null,
+        $params = [
+            'q' => '*',
+            'query_by' => 'name',
             'filter_by' => $this->buildFilterBy($restaurant->id, $filters),
             'exclude_fields' => 'embedding',
             'per_page' => $limit,
-            'prioritize_exact_match' => 'true',
-            'drop_tokens_threshold' => 2,
-        ]));
+        ];
 
-        return collect($result['hits'] ?? [])->map(function (array $hit) {
+        // with a real query we search on the text fields AND the embedding (= hybrid search)
+        if (trim($query) !== '' && trim($query) !== '*') {
+            $params['q'] = $query;
+            $params['query_by'] = 'name,description,category,embedding';
+            $params['vector_query'] = 'embedding:([], alpha: '.config('typesense.hybrid_alpha').')';
+            $params['prioritize_exact_match'] = 'true';
+            $params['drop_tokens_threshold'] = 2;
+        }
+
+        $result = $this->client->search(config('typesense.collections.dishes'), $params);
+        $hits = [];
+
+        foreach ($result['hits'] ?? [] as $hit) {
             $doc = $hit['document'];
-
-            return [
+            $hits[] = [
                 'id' => (int) $doc['id'],
                 'name' => $doc['name'],
                 'description' => $doc['description'],
@@ -159,14 +140,13 @@ class SearchService
                 'spicy_level' => $doc['spicy_level'],
                 'available' => $doc['available'],
                 'allergens' => $doc['allergens'],
-                'score' => round((float) ($hit['hybrid_search_info']['rank_fusion_score'] ?? $hit['text_match'] ?? 0), 4),
+                'score' => $this->score($hit),
             ];
-        })->values()->all();
+        }
+
+        return $hits;
     }
 
-    /**
-     * @return list<array<string, mixed>>
-     */
     private function typesenseDocs(Restaurant $restaurant, string $query, int $limit): array
     {
         $result = $this->client->search(config('typesense.collections.doc_chunks'), [
@@ -179,134 +159,126 @@ class SearchService
             'drop_tokens_threshold' => 2,
         ]);
 
-        return collect($result['hits'] ?? [])->map(fn (array $hit) => [
-            'chunk_id' => $hit['document']['id'],
-            'document_id' => $hit['document']['document_id'],
-            'document_title' => $hit['document']['document_title'],
-            'heading' => $hit['document']['heading'] ?: null,
-            'content' => $hit['document']['content'],
-            'score' => round((float) ($hit['hybrid_search_info']['rank_fusion_score'] ?? $hit['text_match'] ?? 0), 4),
+        $hits = [];
+
+        foreach ($result['hits'] ?? [] as $hit) {
+            $doc = $hit['document'];
+            $hits[] = [
+                'chunk_id' => $doc['id'],
+                'document_id' => $doc['document_id'],
+                'document_title' => $doc['document_title'],
+                'heading' => $doc['heading'] ?: null,
+                'content' => $doc['content'],
+                'score' => $this->score($hit),
+            ];
+        }
+
+        return $hits;
+    }
+
+    private function databaseDishes(Restaurant $restaurant, string $query, DishFilters $filters, int $limit): array
+    {
+        $dishes = $this->dishes->filter($restaurant->id, $filters);
+        $words = $this->keywords($query, $filters);
+
+        $matching = $dishes->filter(function (Dish $dish) use ($words) {
+            $text = $dish->name.' '.$dish->description.' '.$dish->category?->name;
+
+            return $this->countMatches($words, $text) > 0;
+        });
+
+        // a query like "vegetarian under 25 TND" has no real keywords, so the filters decide alone
+        if ($matching->isNotEmpty()) {
+            $dishes = $matching;
+        }
+
+        return $dishes->take($limit)->map(fn (Dish $dish) => [
+            'id' => $dish->id,
+            'name' => $dish->name,
+            'description' => $dish->description,
+            'category' => $dish->category?->name,
+            'price' => (float) $dish->price,
+            'currency' => 'TND',
+            'is_vegetarian' => $dish->is_vegetarian,
+            'is_vegan' => $dish->is_vegan,
+            'spicy_level' => $dish->spicy_level,
+            'available' => $dish->available,
+            'allergens' => $dish->allergens->pluck('slug')->all(),
+            'score' => null,
         ])->values()->all();
     }
 
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function fallbackDishes(Restaurant $restaurant, string $query, DishFilters $filters, int $limit): array
+    private function databaseDocs(Restaurant $restaurant, string $query, int $limit): array
     {
-        $candidates = $this->dishes->filter($restaurant->id, $filters);
+        $words = $this->keywords($query, new DishFilters);
 
-        // Words the structured filters already express ("vegetarian", "peanuts")
-        // are constraints, not things to match in a dish description.
-        $terms = array_values(array_filter(
-            $this->terms($query),
-            fn (string $term) => ! in_array($term, self::DIET_WORDS, true)
-                && array_intersect(AllergenResolver::resolve([$term]), $filters->excludeAllergens) === [],
-        ));
-
-        $scored = $candidates->map(fn (Dish $dish) => [
-            'dish' => $dish,
-            'score' => $this->score($terms, $dish->name.' '.($dish->category?->name ?? '').' '.$dish->description),
-        ]);
-
-        // When the query only expresses constraints ("vegetarian under 25 TND"),
-        // nothing matches lexically and the structured filters alone decide.
-        if ($terms !== [] && $scored->contains(fn ($row) => $row['score'] > 0)) {
-            $scored = $scored->filter(fn ($row) => $row['score'] > 0);
-        }
-
-        // Best lexical score first, then menu order (category position, price).
-        return $scored
-            ->sort(fn (array $a, array $b) => [$b['score'], $a['dish']->category?->position ?? PHP_INT_MAX, (float) $a['dish']->price]
-                <=> [$a['score'], $b['dish']->category?->position ?? PHP_INT_MAX, (float) $b['dish']->price])
-            ->take($limit)
-            ->map(fn ($row) => [
-                'id' => $row['dish']->id,
-                'name' => $row['dish']->name,
-                'description' => $row['dish']->description,
-                'category' => $row['dish']->category?->name,
-                'price' => (float) $row['dish']->price,
-                'currency' => 'TND',
-                'is_vegetarian' => $row['dish']->is_vegetarian,
-                'is_vegan' => $row['dish']->is_vegan,
-                'spicy_level' => $row['dish']->spicy_level,
-                'available' => $row['dish']->available,
-                'allergens' => $row['dish']->allergens->pluck('slug')->values()->all(),
-                'score' => round($row['score'], 4),
-            ])
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function fallbackDocs(Restaurant $restaurant, string $query, int $limit): array
-    {
-        $terms = $this->terms($query);
-
-        /** @var Collection<int, DocumentChunk> $chunks */
-        $chunks = DocumentChunk::query()
-            ->with('document:id,title,restaurant_id')
+        $chunks = DocumentChunk::with('document')
             ->whereHas('document', fn ($q) => $q->where('restaurant_id', $restaurant->id))
             ->get();
 
-        return $chunks
-            ->map(fn (DocumentChunk $chunk) => [
-                'chunk' => $chunk,
-                'score' => $this->score($terms, ($chunk->heading ?? '').' '.$chunk->content),
-            ])
-            ->filter(fn ($row) => $row['score'] > 0)
-            ->sortByDesc('score')
-            ->take($limit)
-            ->map(fn ($row) => [
-                'chunk_id' => $row['chunk']->document_id.'-'.$row['chunk']->position,
-                'document_id' => $row['chunk']->document_id,
-                'document_title' => $row['chunk']->document->title,
-                'heading' => $row['chunk']->heading,
-                'content' => $row['chunk']->content,
-                'score' => round($row['score'], 4),
-            ])
-            ->values()
-            ->all();
-    }
+        $results = [];
 
-    /**
-     * @return list<string>
-     */
-    private function terms(string $query): array
-    {
-        $words = preg_split('/[^\p{L}\p{N}\']+/u', Str::lower($query), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        foreach ($chunks as $chunk) {
+            $matches = $this->countMatches($words, $chunk->heading.' '.$chunk->content);
 
-        return array_values(array_unique(array_filter(
-            $words,
-            fn ($w) => mb_strlen($w) >= 3 && ! is_numeric($w) && ! in_array($w, self::STOPWORDS, true),
-        )));
-    }
-
-    /**
-     * Fraction of query terms found in the text, with light prefix matching
-     * so "spicy" matches "spice" and "desserts" matches "dessert".
-     *
-     * @param  list<string>  $terms
-     */
-    private function score(array $terms, string $text): float
-    {
-        if ($terms === []) {
-            return 0.0;
-        }
-
-        $haystack = Str::lower(Str::ascii($text));
-        $hits = 0;
-
-        foreach ($terms as $term) {
-            $stem = mb_substr(Str::ascii($term), 0, max(4, mb_strlen($term) - 2));
-            if (str_contains($haystack, $stem)) {
-                $hits++;
+            if ($matches > 0) {
+                $results[] = [
+                    'chunk_id' => $chunk->document_id.'-'.$chunk->position,
+                    'document_id' => $chunk->document_id,
+                    'document_title' => $chunk->document->title,
+                    'heading' => $chunk->heading,
+                    'content' => $chunk->content,
+                    'score' => $matches,
+                ];
             }
         }
 
-        return $hits / count($terms);
+        // the chunks with the most matching words first
+        usort($results, fn ($a, $b) => $b['score'] <=> $a['score']);
+
+        return array_slice($results, 0, $limit);
+    }
+
+    private function keywords(string $query, DishFilters $filters): array
+    {
+        $words = preg_split('/[^a-z0-9]+/', Str::lower(Str::ascii($query)), -1, PREG_SPLIT_NO_EMPTY);
+        $keywords = [];
+
+        foreach ($words as $word) {
+            if (strlen($word) < 4 || in_array($word, self::IGNORED_WORDS)) {
+                continue;
+            }
+
+            // in "allergic to peanuts", "peanuts" is a filter and not something to search for
+            if (count(array_intersect(AllergenResolver::resolve($word), $filters->excludeAllergens)) > 0) {
+                continue;
+            }
+
+            $keywords[] = $word;
+        }
+
+        return array_unique($keywords);
+    }
+
+    private function countMatches(array $words, string $text): int
+    {
+        $text = Str::lower(Str::ascii($text));
+        $count = 0;
+
+        foreach ($words as $word) {
+            if (str_contains($text, $word)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    private function score(array $hit): float
+    {
+        $score = $hit['hybrid_search_info']['rank_fusion_score'] ?? $hit['text_match'] ?? 0;
+
+        return round((float) $score, 4);
     }
 
     private function escape(string $value): string

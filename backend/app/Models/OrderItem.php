@@ -9,9 +9,6 @@ class OrderItem extends Model
 {
     protected $fillable = ['order_id', 'dish_id', 'dish_name', 'quantity', 'unit_price', 'subtotal'];
 
-    /**
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -21,17 +18,11 @@ class OrderItem extends Model
         ];
     }
 
-    /**
-     * @return BelongsTo<Order, $this>
-     */
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
     }
 
-    /**
-     * @return BelongsTo<Dish, $this>
-     */
     public function dish(): BelongsTo
     {
         return $this->belongsTo(Dish::class);

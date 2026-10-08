@@ -10,16 +10,13 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-/**
- * Ingestion pipeline for the RAG knowledge base:
- * upload -> extract text -> chunk -> store chunks in SQL -> index in Typesense.
- */
+// Upload -> extract the text -> split it into chunks -> save the chunks -> index them in Typesense
 class DocumentService
 {
     public function __construct(
-        private readonly TextExtractor $extractor,
-        private readonly TextChunker $chunker,
-        private readonly SearchIndexer $indexer,
+        private TextExtractor $extractor,
+        private TextChunker $chunker,
+        private SearchIndexer $indexer,
     ) {}
 
     public function ingestUpload(Restaurant $restaurant, UploadedFile $file, ?string $title, ?User $uploader): Document

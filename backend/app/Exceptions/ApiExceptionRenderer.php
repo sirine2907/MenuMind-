@@ -11,14 +11,11 @@ use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
 
-/**
- * Renders every API error with the same envelope:
- *
- * { "error": { "status": 422, "code": "validation_failed", "message": "...", "details": {...} } }
- */
+// Every API error is returned in the same format:
+// { "error": { "status": 422, "code": "validation_failed", "message": "...", "details": {...} } }
 class ApiExceptionRenderer
 {
-    private const HTTP_CODES = [
+    private const CODES = [
         400 => 'bad_request',
         401 => 'unauthenticated',
         403 => 'forbidden',
@@ -35,52 +32,64 @@ class ApiExceptionRenderer
 
     public function render(Throwable $e): JsonResponse
     {
-        [$status, $code, $message, $details] = match (true) {
-            $e instanceof ApiException => [$e->status, $e->errorCode, $e->getMessage(), $e->details],
-            $e instanceof ValidationException => [422, 'validation_failed', $e->getMessage(), $e->errors()],
-            $e instanceof AuthenticationException => [401, 'unauthenticated', 'Authentication is required.', []],
-            $e instanceof AuthorizationException => [403, 'forbidden', $e->getMessage() ?: 'This action is unauthorized.', []],
-            $e instanceof ModelNotFoundException => [404, 'not_found', $this->modelNotFoundMessage($e), []],
-            $e instanceof ThrottleRequestsException => [429, 'too_many_requests', 'Too many requests, slow down.', []],
-            $e instanceof HttpExceptionInterface => [
-                $e->getStatusCode(),
-                self::HTTP_CODES[$e->getStatusCode()] ?? 'http_error',
-                $this->httpMessage($e),
-                [],
-            ],
-            default => [500, 'server_error', config('app.debug') ? $e->getMessage() : 'Something went wrong on our side.', []],
-        };
-
-        $body = ['status' => $status, 'code' => $code, 'message' => $message];
-
-        if ($details !== []) {
-            $body['details'] = $details;
+        if ($e instanceof ApiException) {
+            return $this->error($e->status, $e->errorCode, $e->getMessage(), $e->details);
         }
 
-        $headers = $e instanceof HttpExceptionInterface ? $e->getHeaders() : [];
-
-        return new JsonResponse(['error' => $body], $status, $headers);
-    }
-
-    private function modelNotFoundMessage(ModelNotFoundException $e): string
-    {
-        $model = class_basename($e->getModel());
-
-        return "{$model} not found.";
-    }
-
-    private function httpMessage(HttpExceptionInterface&Throwable $e): string
-    {
-        $previous = $e->getPrevious();
-
-        if ($previous instanceof ModelNotFoundException) {
-            return $this->modelNotFoundMessage($previous);
+        if ($e instanceof ValidationException) {
+            return $this->error(422, 'validation_failed', $e->getMessage(), $e->errors());
         }
 
-        return $e->getMessage() !== '' ? $e->getMessage() : match ($e->getStatusCode()) {
-            404 => 'The requested resource was not found.',
-            405 => 'Method not allowed.',
-            default => 'Request failed.',
-        };
+        if ($e instanceof AuthenticationException) {
+            return $this->error(401, 'unauthenticated', 'Authentication is required.');
+        }
+
+        if ($e instanceof AuthorizationException) {
+            return $this->error(403, 'forbidden', $e->getMessage() ?: 'This action is unauthorized.');
+        }
+
+        if ($e instanceof ModelNotFoundException) {
+            return $this->error(404, 'not_found', $this->notFoundMessage($e));
+        }
+
+        if ($e instanceof ThrottleRequestsException) {
+            return $this->error(429, 'too_many_requests', 'Too many requests, slow down.', [], $e->getHeaders());
+        }
+
+        if ($e instanceof HttpExceptionInterface) {
+            $status = $e->getStatusCode();
+            $message = $e->getMessage();
+
+            // route model binding wraps the "not found" exception
+            if ($e->getPrevious() instanceof ModelNotFoundException) {
+                $message = $this->notFoundMessage($e->getPrevious());
+            }
+
+            if ($message === '') {
+                $message = $status === 404 ? 'The requested resource was not found.' : 'Request failed.';
+            }
+
+            return $this->error($status, self::CODES[$status] ?? 'http_error', $message, [], $e->getHeaders());
+        }
+
+        $message = config('app.debug') ? $e->getMessage() : 'Something went wrong on our side.';
+
+        return $this->error(500, 'server_error', $message);
+    }
+
+    private function error(int $status, string $code, string $message, array $details = [], array $headers = []): JsonResponse
+    {
+        $error = ['status' => $status, 'code' => $code, 'message' => $message];
+
+        if (count($details) > 0) {
+            $error['details'] = $details;
+        }
+
+        return response()->json(['error' => $error], $status, $headers);
+    }
+
+    private function notFoundMessage(ModelNotFoundException $e): string
+    {
+        return class_basename($e->getModel()).' not found.';
     }
 }

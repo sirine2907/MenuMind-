@@ -8,15 +8,12 @@ use App\Models\Dish;
 use App\Models\Order;
 use App\Models\Restaurant;
 use App\Models\User;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 class OrderService
 {
-    /**
-     * Statuses an order may move to from its current one.
-     */
-    private const TRANSITIONS = [
+    // Which statuses an order can move to from its current status
+    private const NEXT_STATUSES = [
         'pending' => ['confirmed', 'cancelled'],
         'confirmed' => ['preparing', 'cancelled'],
         'preparing' => ['ready', 'cancelled'],
@@ -25,41 +22,45 @@ class OrderService
         'cancelled' => [],
     ];
 
-    /**
-     * @return LengthAwarePaginator<int, Order>
-     */
-    public function listFor(User $user, ?string $status = null, int $perPage = 15): LengthAwarePaginator
+    public function listFor(User $user, ?string $status = null, int $perPage = 15)
     {
-        return Order::query()
-            ->with(['items', 'user'])
-            ->unless($user->isAdmin(), fn ($q) => $q->where('user_id', $user->id))
-            ->when($status, fn ($q, $s) => $q->where('status', $s))
-            ->latest('id')
-            ->paginate($perPage);
+        $query = Order::with(['items', 'user'])->latest('id');
+
+        // customers only see their own orders, admins see everything
+        if (! $user->isAdmin()) {
+            $query->where('user_id', $user->id);
+        }
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        return $query->paginate($perPage);
     }
 
-    /**
-     * @param  list<array{dish_id: int, quantity: int}>  $items
-     */
     public function place(User $user, Restaurant $restaurant, array $items, ?string $notes = null): Order
     {
-        $quantities = $this->mergeQuantities($items);
+        // if the same dish is sent twice we add the quantities together
+        $quantities = [];
+        foreach ($items as $item) {
+            $dishId = (int) $item['dish_id'];
+            $quantities[$dishId] = ($quantities[$dishId] ?? 0) + (int) $item['quantity'];
+        }
 
         return DB::transaction(function () use ($user, $restaurant, $quantities, $notes) {
-            $dishes = Dish::query()
-                ->whereIn('id', array_keys($quantities))
+            $dishes = Dish::whereIn('id', array_keys($quantities))
                 ->where('restaurant_id', $restaurant->id)
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('id');
 
             $missing = array_values(array_diff(array_keys($quantities), $dishes->keys()->all()));
-            if ($missing !== []) {
+            if (count($missing) > 0) {
                 throw new ApiException('Some dishes do not exist on this menu.', 'dish_not_found', 422, ['dish_ids' => $missing]);
             }
 
-            $unavailable = $dishes->reject->available->pluck('name')->values()->all();
-            if ($unavailable !== []) {
+            $unavailable = $dishes->where('available', false)->pluck('name')->values()->all();
+            if (count($unavailable) > 0) {
                 throw new ApiException(
                     'Some dishes are currently unavailable: '.implode(', ', $unavailable).'.',
                     'dish_unavailable',
@@ -75,11 +76,11 @@ class OrderService
                 'notes' => $notes,
             ]);
 
-            $total = 0.0;
-
+            // the total is always calculated here, never trusted from the client
+            $total = 0;
             foreach ($quantities as $dishId => $quantity) {
                 $dish = $dishes[$dishId];
-                $subtotal = round((float) $dish->price * $quantity, 3);
+                $subtotal = round($dish->price * $quantity, 3);
                 $total += $subtotal;
 
                 $order->items()->create([
@@ -99,9 +100,9 @@ class OrderService
 
     public function updateStatus(Order $order, OrderStatus $status): Order
     {
-        $allowed = self::TRANSITIONS[$order->status->value];
+        $allowed = self::NEXT_STATUSES[$order->status->value];
 
-        if (! in_array($status->value, $allowed, true)) {
+        if (! in_array($status->value, $allowed)) {
             throw new ApiException(
                 "Cannot move an order from {$order->status->value} to {$status->value}.",
                 'invalid_status_transition',
@@ -113,23 +114,5 @@ class OrderService
         $order->update(['status' => $status]);
 
         return $order->load('items');
-    }
-
-    /**
-     * The same dish listed twice becomes one line with the summed quantity.
-     *
-     * @param  list<array{dish_id: int, quantity: int}>  $items
-     * @return array<int, int>
-     */
-    private function mergeQuantities(array $items): array
-    {
-        $quantities = [];
-
-        foreach ($items as $item) {
-            $id = (int) $item['dish_id'];
-            $quantities[$id] = ($quantities[$id] ?? 0) + (int) $item['quantity'];
-        }
-
-        return $quantities;
     }
 }

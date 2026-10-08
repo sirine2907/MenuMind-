@@ -9,10 +9,6 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthService
 {
-    /**
-     * @param  array{name: string, email: string, password: string}  $data
-     * @return array{user: User, token: string}
-     */
     public function register(array $data): array
     {
         $user = User::create([
@@ -22,12 +18,9 @@ class AuthService
             'role' => UserRole::Customer,
         ]);
 
-        return ['user' => $user, 'token' => $this->issueToken($user)];
+        return ['user' => $user, 'token' => $this->createToken($user)];
     }
 
-    /**
-     * @return array{user: User, token: string}
-     */
     public function login(string $email, string $password): array
     {
         $user = User::where('email', strtolower($email))->first();
@@ -36,7 +29,7 @@ class AuthService
             throw new ApiException('These credentials do not match our records.', 'invalid_credentials', 401);
         }
 
-        return ['user' => $user, 'token' => $this->issueToken($user)];
+        return ['user' => $user, 'token' => $this->createToken($user)];
     }
 
     public function logout(User $user): void
@@ -44,7 +37,7 @@ class AuthService
         $user->currentAccessToken()?->delete();
     }
 
-    private function issueToken(User $user): string
+    private function createToken(User $user): string
     {
         $abilities = $user->isAdmin() ? ['*'] : ['customer'];
 

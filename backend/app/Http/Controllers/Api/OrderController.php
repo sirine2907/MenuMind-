@@ -18,7 +18,7 @@ use Illuminate\Validation\Rule;
 
 class OrderController extends Controller
 {
-    public function __construct(private readonly OrderService $orders) {}
+    public function __construct(private OrderService $orders) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {

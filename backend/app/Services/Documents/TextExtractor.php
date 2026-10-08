@@ -7,7 +7,7 @@ use Smalot\PdfParser\Parser as PdfParser;
 
 class TextExtractor
 {
-    public function __construct(private readonly PdfParser $pdf) {}
+    public function __construct(private PdfParser $pdf) {}
 
     public function extract(string $path, string $extension): string
     {
