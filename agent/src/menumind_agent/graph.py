@@ -1,13 +1,9 @@
-"""The LangGraph agent: a ReAct-style loop with a guarded tool node.
+"""The LangGraph agent.
 
-    START -> agent --(tool calls?)--> tools -> agent -> ... -> END
+START -> agent -> (tool calls?) -> tools -> agent -> ... -> END
 
-* ``agent`` calls the LLM with the system prompt and a trimmed history.
-* ``tools`` executes the requested tools. ``create_order`` is refused unless
-  the guest explicitly confirmed in their latest message, whatever the model
-  decided: the guard is code, not a prompt.
-
-Conversation memory is the LangGraph checkpointer, keyed by session id.
+The "agent" node asks the LLM what to do, the "tools" node runs the tools.
+create_order is blocked if the customer did not say yes, even if the LLM asks for it.
 """
 
 import json

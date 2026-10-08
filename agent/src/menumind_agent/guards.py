@@ -1,4 +1,4 @@
-"""Deterministic safety checks that do not rely on the LLM behaving."""
+"""Checks done in code, so we don't have to trust the LLM for them."""
 
 import re
 from collections.abc import Sequence
@@ -31,15 +31,14 @@ def is_explicit_confirmation(text: str) -> bool:
 
 
 def order_was_confirmed(messages: Sequence[AnyMessage]) -> bool:
-    """True when the guest's latest message explicitly confirms a proposal the
-    assistant made in its previous reply. Used to block `create_order` calls the
-    model might make on its own initiative."""
+    """True if the customer's last message is a "yes" to a question the assistant asked just before."""
     idx = last_human_index(messages)
     if idx <= 0 or not is_explicit_confirmation(text_of(messages[idx])):
         return False
 
-    previous_ai = next(
-        (m for m in reversed(messages[:idx]) if isinstance(m, AIMessage) and not m.tool_calls),
-        None,
-    )
-    return previous_ai is not None and "?" in text_of(previous_ai)
+    # find the assistant's last answer before the "yes"
+    for message in reversed(messages[:idx]):
+        if isinstance(message, AIMessage) and not message.tool_calls:
+            return "?" in text_of(message)
+
+    return False

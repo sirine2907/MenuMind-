@@ -1,7 +1,7 @@
-"""Tools the agent can call. Each one is a thin, typed wrapper over the API.
+"""The tools the agent can call. They all call the Laravel API.
 
-Tools return ``(content, artifact)``: the compact JSON *content* is what the
-LLM reads, the raw *artifact* is kept for citations and the UI.
+Each tool returns (content, artifact): the content is the short JSON the LLM reads,
+the artifact is the full API result that we keep for the citations.
 """
 
 import json
