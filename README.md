@@ -384,6 +384,6 @@ menumind/
 
 ## Author
 
-**[Your Name]**: [LinkedIn](https://www.linkedin.com/in/your-profile) · [your.email@example.com](mailto:your.email@example.com)
+**Sirine Ayadi**: [LinkedIn](https://www.linkedin.com/in/sirine-ayadi-24212a1b2/) · [email]sirineayadi2907@gmail.com)
 
 If you have feedback or questions about this project, I'd be glad to hear from you.
